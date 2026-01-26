@@ -1,30 +1,3 @@
-# ParkinGator 🚗🐊
-
-ParkinGator is a web application designed to help University of Florida (Florida Gators) students and staff check campus parking availability.
-
-The project follows a **separated frontend–backend architecture**, using Angular for the frontend and Go (Golang) for the backend API.
-
----
-
-## 📌 Project Overview
-
-Finding available parking on campus can be time-consuming, especially during peak hours.  
-ParkinGator aims to provide a clear and extensible system for checking parking availability through a modern web interface.
-
-This project is developed by a small software engineering team as a full-stack web application.
-
----
-
-## 🏗 System Architecture
-
-```text
-Browser
-  ↓
-Angular Frontend (http://localhost:4200)
-  ↓  HTTP API requests
-Go Backend API (http://localhost:8080)
-
-
 ## Set Up Environment
 
 ### 1️⃣ Install Node.js and npm (required for frontend)

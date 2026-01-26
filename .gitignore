@@ -1,0 +1,27 @@
+# Node/Angular
+node_modules/
+dist/
+.angular/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/vendor/
+
+# Environment variables
+.env
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/
+
+# Logs
+logs
+*.log
