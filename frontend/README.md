@@ -1,59 +1,100 @@
-# Frontend
+## Set Up Environment
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.1.
+### 1️⃣ Install Node.js and npm (required for frontend)
 
-## Development server
+- Download Node.js from: <span style="color:blue">https://nodejs.org/</span>  
+- Recommended version: <span style="color:blue">Node.js 22.12+</span>
 
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+- Verify installation:
 
 ```bash
-ng generate component component-name
+node -v
+npm -v
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+---
+
+### 2️⃣ Install Angular CLI (Global Tool)
+
+- Install Angular CLI globally:
 
 ```bash
-ng generate --help
+npm install -g @angular/cli
 ```
 
-## Building
-
-To build the project run:
+- Check version:
 
 ```bash
-ng build
+ng version
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+---
 
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+### 3️⃣ Frontend Setup
 
 ```bash
-ng test
+cd frontend
+npm install
 ```
 
-## Running end-to-end tests
+This installs all frontend dependencies defined in <span style="color:blue">package.json</span>.
 
-For end-to-end (e2e) testing, run:
+---
+
+### 4️⃣ Install Go (Required for Backend)
+
+- Download Go from: <span style="color:blue">https://go.dev/dl/</span>  
+- Verify installation:
 
 ```bash
-ng e2e
+go version
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+---
 
-## Additional Resources
+### 5️⃣ Backend Setup
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+This sets up Go modules for dependency management:
+
+```bash
+cd backend
+go mod init parkinGator-backend  # only if not initialized
+go mod tidy
+```
+
+---
+
+## Run
+
+### 1️⃣ Run Backend
+
+```bash
+cd backend
+go run main.go
+```
+
+- Server runs at: <span style="color:blue">http://localhost:8080/api/parking</span>
+
+---
+
+### 2️⃣ Run Frontend
+
+```bash
+cd frontend
+ng serve --open
+```
+
+- Server runs at: <span style="color:blue">http://localhost:4200</span>  
+- Browser will open automatically
+
+---
+
+## Notes
+
+- Make sure both frontend and backend are running simultaneously during development.
+- Frontend communicates with backend through HTTP requests to endpoints like `/api/parking`.
+- If you encounter permission issues with npm globally, you can fix them by:
+
+```bash
+sudo chown -R $(id -u):$(id -g) ~/.npm
+```
