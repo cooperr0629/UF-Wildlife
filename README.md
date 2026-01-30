@@ -1,6 +1,6 @@
-# ParkinGator 🚗🐊
+# UFwildlife🐊
 
-ParkinGator is a web application designed to help University of Florida (Florida Gators) students and staff check campus parking availability.
+UFwildlife is a community-driven web platform that allows University of Florida students and faculty to record, share, and explore the animals found on campus. 
 
 The project follows a **separated frontend–backend architecture**, using Angular for the frontend and Go (Golang) for the backend API.
 
@@ -8,8 +8,7 @@ The project follows a **separated frontend–backend architecture**, using Angul
 
 ## 📌 Project Overview
 
-Finding available parking on campus can be time-consuming, especially during peak hours.  
-ParkinGator aims to provide a clear and extensible system for checking parking availability through a modern web interface.
+UFwildlife brings campus to life through an interactive map where students capture and share the animals they meet every day in different seasons. Upload a photo, drop a pin, and tell your story — then explore what others have discovered across campus. It's more than a map; it's a shared memory that Gators have tucked into every corner of campus.
 
 This project is developed by a small software engineering team as a full-stack web application.
 
