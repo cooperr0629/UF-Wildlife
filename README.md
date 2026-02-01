@@ -16,7 +16,7 @@ This project is developed by a small software engineering team as a full-stack w
 
 ## 💻 Team member
 
-Frontend Developers: Hailin Zeng, Xueni Huang
+Frontend Developers: Hailin Zeng
 
 Backend Developers: Zhengqi Li, Min Yao
 
