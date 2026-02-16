@@ -1,6 +1,7 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { AuthService } from '../auth.service';
 
 @Component({
   selector: 'app-login',
@@ -10,6 +11,8 @@ import { Router, RouterLink } from '@angular/router';
   styleUrl: './login.css',
 })
 export class LoginComponent {
+  private authService = inject(AuthService);
+
   email = signal('');
   password = signal('');
   showPassword = signal(false);
@@ -40,9 +43,9 @@ export class LoginComponent {
     this.errorMessage.set('');
     this.isLoading.set(true);
 
-    // TODO: Connect to backend authentication API
-    // For now, simulate login and redirect to home
+    // Simulate login and set user data
     setTimeout(() => {
+      this.authService.login(emailValue, passwordValue);
       this.isLoading.set(false);
       this.router.navigate(['/home']);
     }, 1000);

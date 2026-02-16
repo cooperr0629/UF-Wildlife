@@ -2,6 +2,7 @@ import { Injectable, signal, computed } from '@angular/core';
 
 export interface Sighting {
   id: string;
+  userId: string;
   latitude: number;
   longitude: number;
   address: string;
@@ -43,5 +44,19 @@ export class SightingService {
 
   add(sighting: Sighting) {
     this._sightings.update((list) => [...list, sighting]);
+  }
+
+  remove(id: string) {
+    this._sightings.update((list) => list.filter((s) => s.id !== id));
+  }
+
+  update(id: string, data: Partial<Sighting>) {
+    this._sightings.update((list) =>
+      list.map((s) => (s.id === id ? { ...s, ...data } : s))
+    );
+  }
+
+  sightingsByUser(userId: string): Sighting[] {
+    return this._sightings().filter((s) => s.userId === userId);
   }
 }

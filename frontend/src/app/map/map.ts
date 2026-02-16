@@ -10,6 +10,7 @@ import {
 import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SightingService, Sighting, CATEGORY_COLORS } from '../sighting.service';
+import { AuthService } from '../auth.service';
 import type * as L from 'leaflet';
 
 interface NominatimResult {
@@ -42,6 +43,7 @@ interface SightingForm {
 export class MapComponent implements AfterViewInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   private sightingService = inject(SightingService);
+  private authService = inject(AuthService);
   private map: L.Map | null = null;
   private leaflet: typeof L | null = null;
   private searchMarker: L.Marker | null = null;
@@ -368,6 +370,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
     const newSighting: Sighting = {
       id: crypto.randomUUID(),
+      userId: this.authService.currentUser()?.id || '',
       latitude: s.latitude,
       longitude: s.longitude,
       address: s.address,

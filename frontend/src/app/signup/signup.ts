@@ -1,6 +1,7 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { AuthService } from '../auth.service';
 
 @Component({
   selector: 'app-signup',
@@ -10,6 +11,8 @@ import { Router, RouterLink } from '@angular/router';
   styleUrl: './signup.css',
 })
 export class SignupComponent {
+  private authService = inject(AuthService);
+
   username = signal('');
   email = signal('');
   password = signal('');
@@ -68,11 +71,11 @@ export class SignupComponent {
     this.errorMessage.set('');
     this.isLoading.set(true);
 
-    // TODO: Connect to backend registration API
-    // For now, simulate registration and redirect to creation page
+    // Simulate registration and set user data
     setTimeout(() => {
+      this.authService.signup(usernameValue, emailValue);
       this.isLoading.set(false);
-      this.router.navigate(['/create']);
+      this.router.navigate(['/home']);
     }, 1000);
   }
 
