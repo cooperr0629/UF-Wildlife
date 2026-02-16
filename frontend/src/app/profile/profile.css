@@ -1,0 +1,22 @@
+:host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.placeholder {
+  text-align: center;
+  color: #555;
+}
+
+.placeholder h2 {
+  font-size: 24px;
+  margin-bottom: 8px;
+  color: #0021A5;
+}
+
+.placeholder p {
+  font-size: 14px;
+  color: #888;
+}

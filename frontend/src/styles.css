@@ -1,3 +1,6 @@
+/* Leaflet */
+@import 'leaflet/dist/leaflet.css';
+
 /* Global styles */
 *, *::before, *::after {
   box-sizing: border-box;

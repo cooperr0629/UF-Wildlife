@@ -1,0 +1,233 @@
+<div class="search-bar">
+  <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#888" stroke-width="2">
+    <circle cx="11" cy="11" r="8"/>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+  <input
+    type="text"
+    class="search-input"
+    placeholder="Search location..."
+    [ngModel]="query()"
+    (ngModelChange)="query.set($event)"
+    (keydown.enter)="search()"
+  />
+  @if (query()) {
+    <button class="clear-btn" (click)="clearSearch()">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#888" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  }
+  <button class="search-btn" (click)="search()" [disabled]="isSearching()">
+    @if (isSearching()) {
+      <span class="spinner"></span>
+    } @else {
+      Search
+    }
+  </button>
+</div>
+
+@if (results().length > 0 && showResults()) {
+  <div class="search-results">
+    @for (result of results(); track result.place_id) {
+      <button class="result-item" (click)="selectResult(result)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#0021A5" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+        <span class="result-text">{{ result.display_name }}</span>
+      </button>
+    }
+  </div>
+}
+
+@if (searchError()) {
+  <div class="search-error">{{ searchError() }}</div>
+}
+
+<div id="map"></div>
+
+<!-- Sighting Form Modal -->
+@if (showSightingForm()) {
+  <div class="modal-overlay" (click)="closeSightingForm()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Add Animal Sighting</h2>
+        <button class="modal-close" (click)="closeSightingForm()">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Location (read-only) -->
+        <div class="form-section">
+          <label class="form-label">Location</label>
+          <div class="location-info">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#E53935" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            <span class="location-address">{{ sighting().address }}</span>
+          </div>
+          <div class="location-coords">
+            {{ sighting().latitude.toFixed(5) }}, {{ sighting().longitude.toFixed(5) }}
+          </div>
+        </div>
+
+        <!-- Date & Time -->
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="sighting-date">Date</label>
+            <input
+              id="sighting-date"
+              type="date"
+              class="form-input"
+              [ngModel]="sighting().date"
+              (ngModelChange)="updateField('date', $event)"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sighting-time">Time</label>
+            <input
+              id="sighting-time"
+              type="time"
+              class="form-input"
+              [ngModel]="sighting().time"
+              (ngModelChange)="updateField('time', $event)"
+            />
+          </div>
+        </div>
+
+        <!-- Animal Name -->
+        <div class="form-group">
+          <label class="form-label" for="animal-name">Animal Name <span class="required">*</span></label>
+          <input
+            id="animal-name"
+            type="text"
+            class="form-input"
+            placeholder="e.g. Eastern Gray Squirrel"
+            [ngModel]="sighting().animalName"
+            (ngModelChange)="updateField('animalName', $event)"
+          />
+        </div>
+
+        <!-- Category -->
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <div class="category-chips">
+            @for (cat of categories; track cat) {
+              <button
+                type="button"
+                class="category-chip"
+                [class.selected]="sighting().category === cat"
+                [style.--chip-color]="categoryColor(cat)"
+                (click)="updateField('category', cat)"
+              >
+                <span class="chip-dot"></span>
+                {{ cat }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Quantity -->
+        <div class="form-group">
+          <label class="form-label" for="quantity">Quantity</label>
+          <input
+            id="quantity"
+            type="number"
+            class="form-input"
+            min="1"
+            [ngModel]="sighting().quantity"
+            (ngModelChange)="updateField('quantity', +$event)"
+          />
+        </div>
+
+        <!-- Behavior -->
+        <div class="form-group">
+          <label class="form-label" for="behavior">Behavior</label>
+          <select
+            id="behavior"
+            class="form-input"
+            [ngModel]="sighting().behavior"
+            (ngModelChange)="updateField('behavior', $event)"
+          >
+            <option value="">Select...</option>
+            @for (b of behaviors; track b) {
+              <option [value]="b">{{ b }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Description -->
+        <div class="form-group">
+          <label class="form-label" for="description">Description</label>
+          <textarea
+            id="description"
+            class="form-input form-textarea"
+            rows="3"
+            placeholder="Any additional details about the sighting..."
+            [ngModel]="sighting().description"
+            (ngModelChange)="updateField('description', $event)"
+          ></textarea>
+        </div>
+
+        <!-- Photo Upload -->
+        <div class="form-group">
+          <label class="form-label">Photo <span class="optional">(optional)</span></label>
+          @if (photoPreview()) {
+            <div class="photo-preview">
+              <img [src]="photoPreview()" alt="Preview" />
+              <button class="photo-remove" (click)="removePhoto()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+          } @else {
+            <div
+              class="photo-dropzone"
+              [class.dragging]="isDragging()"
+              (dragover)="onDragOver($event)"
+              (dragleave)="onDragLeave($event)"
+              (drop)="onDrop($event)"
+              (click)="fileInput.click()"
+            >
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#aaa" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+              <span class="dropzone-text">Click to upload or drag & drop</span>
+              <span class="dropzone-hint">PNG, JPG, HEIC up to 10MB</span>
+              <input
+                #fileInput
+                type="file"
+                accept="image/*"
+                hidden
+                (change)="onFileSelect($event)"
+              />
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="closeSightingForm()">Cancel</button>
+        <button
+          class="btn-submit"
+          (click)="submitSighting()"
+          [disabled]="!sighting().animalName.trim() || isSubmitting()"
+        >
+          @if (isSubmitting()) {
+            <span class="spinner spinner-dark"></span>
+          } @else {
+            Submit Sighting
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
