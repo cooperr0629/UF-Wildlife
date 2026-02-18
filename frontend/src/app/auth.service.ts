@@ -10,6 +10,17 @@ export interface User {
   avatarUrl: string | null;
 }
 
+interface AuthResponse {
+  token: string;
+  user: { id: number; username: string; email: string };
+}
+
+interface ErrorResponse {
+  error: string;
+}
+
+const API_BASE = 'http://localhost:8080/api';
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private router = inject(Router);
@@ -18,28 +29,59 @@ export class AuthService {
   readonly currentUser = this._currentUser.asReadonly();
   readonly isLoggedIn = computed(() => this._currentUser() !== null);
 
-  login(email: string, _password: string) {
-    const user: User = {
-      id: crypto.randomUUID(),
-      username: email.split('@')[0],
-      email,
+  async login(email: string, password: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const err: ErrorResponse = await res.json();
+      throw new Error(err.error || 'Login failed');
+    }
+
+    const data: AuthResponse = await res.json();
+    localStorage.setItem('token', data.token);
+
+    this._currentUser.set({
+      id: String(data.user.id),
+      username: data.user.username,
+      email: data.user.email,
       role: 'Student',
       joinDate: new Date().toISOString().split('T')[0],
       avatarUrl: null,
-    };
-    this._currentUser.set(user);
+    });
   }
 
-  signup(username: string, email: string) {
-    const user: User = {
-      id: crypto.randomUUID(),
-      username,
-      email,
+  async signup(
+    username: string,
+    email: string,
+    password: string,
+    confirmPassword: string
+  ): Promise<void> {
+    const res = await fetch(`${API_BASE}/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, password, confirmPassword }),
+    });
+
+    if (!res.ok) {
+      const err: ErrorResponse = await res.json();
+      throw new Error(err.error || 'Signup failed');
+    }
+
+    const data: AuthResponse = await res.json();
+    localStorage.setItem('token', data.token);
+
+    this._currentUser.set({
+      id: String(data.user.id),
+      username: data.user.username,
+      email: data.user.email,
       role: 'Student',
       joinDate: new Date().toISOString().split('T')[0],
       avatarUrl: null,
-    };
-    this._currentUser.set(user);
+    });
   }
 
   updateProfile(fields: Partial<User>) {
@@ -49,6 +91,7 @@ export class AuthService {
   }
 
   logout() {
+    localStorage.removeItem('token');
     this._currentUser.set(null);
     this.router.navigate(['/login']);
   }

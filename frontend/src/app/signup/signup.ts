@@ -39,7 +39,7 @@ export class SignupComponent {
     return checks.minLength && checks.hasLower && checks.hasUpper && checks.hasNumber;
   }
 
-  onSubmit() {
+  async onSubmit() {
     const usernameValue = this.username().trim();
     const emailValue = this.email().trim();
 
@@ -71,12 +71,19 @@ export class SignupComponent {
     this.errorMessage.set('');
     this.isLoading.set(true);
 
-    // Simulate registration and set user data
-    setTimeout(() => {
-      this.authService.signup(usernameValue, emailValue);
-      this.isLoading.set(false);
+    try {
+      await this.authService.signup(
+        usernameValue,
+        emailValue,
+        this.password(),
+        this.confirmPassword()
+      );
       this.router.navigate(['/home']);
-    }, 1000);
+    } catch (err: any) {
+      this.errorMessage.set(err.message || 'Signup failed. Please try again.');
+    } finally {
+      this.isLoading.set(false);
+    }
   }
 
   private isValidEmail(email: string): boolean {
