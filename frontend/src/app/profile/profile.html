@@ -1,0 +1,211 @@
+@if (user(); as u) {
+  <div class="profile-page">
+
+    <!-- User Card -->
+    <section class="user-card">
+      <div class="avatar-area">
+        @if (u.avatarUrl) {
+          <img [src]="u.avatarUrl" alt="Avatar" class="avatar-img" />
+        } @else {
+          <div class="avatar-placeholder">{{ u.username.charAt(0).toUpperCase() }}</div>
+        }
+      </div>
+      <div class="user-info">
+        <h2 class="username">{{ u.username }}</h2>
+        <p class="email">{{ u.email }}</p>
+        <div class="meta">
+          <span class="role-badge">{{ u.role }}</span>
+          <span class="join-date">Joined {{ u.joinDate }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Row -->
+    <section class="stats-row">
+      <div class="stat-card">
+        <span class="stat-value">{{ stats().total }}</span>
+        <span class="stat-label">Sightings</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{{ stats().uniqueSpecies }}</span>
+        <span class="stat-label">Species</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{{ stats().uniqueLocations }}</span>
+        <span class="stat-label">Locations</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value stat-text">{{ stats().topCategory }}</span>
+        <span class="stat-label">Top Category</span>
+      </div>
+    </section>
+
+    <!-- My Sightings -->
+    <section class="sightings-section">
+      <h3>My Sightings</h3>
+
+      @if (mySightings().length === 0) {
+        <p class="empty-msg">No sightings yet. Go to the Map to add one!</p>
+      }
+
+      @for (s of mySightings(); track s.id) {
+        <div class="sighting-item">
+          @if (editSightingId() === s.id) {
+            <!-- Inline edit form -->
+            <div class="edit-sighting-form">
+              <div class="form-row">
+                <label>Animal</label>
+                <input
+                  type="text"
+                  [ngModel]="editSightingForm().animalName"
+                  (ngModelChange)="updateSightingField('animalName', $event)"
+                />
+              </div>
+              <div class="form-row">
+                <label>Category</label>
+                <select
+                  [ngModel]="editSightingForm().category"
+                  (ngModelChange)="updateSightingField('category', $event)"
+                >
+                  @for (cat of categories; track cat) {
+                    <option [value]="cat">{{ cat }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  [ngModel]="editSightingForm().quantity"
+                  (ngModelChange)="updateSightingField('quantity', +$event)"
+                />
+              </div>
+              <div class="form-row">
+                <label>Behavior</label>
+                <select
+                  [ngModel]="editSightingForm().behavior"
+                  (ngModelChange)="updateSightingField('behavior', $event)"
+                >
+                  <option value="">None</option>
+                  @for (b of behaviors; track b) {
+                    <option [value]="b">{{ b }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Description</label>
+                <textarea
+                  rows="2"
+                  [ngModel]="editSightingForm().description"
+                  (ngModelChange)="updateSightingField('description', $event)"
+                ></textarea>
+              </div>
+              <div class="form-actions">
+                <button class="btn-save" (click)="saveEditSighting()">Save</button>
+                <button class="btn-cancel" (click)="cancelEditSighting()">Cancel</button>
+              </div>
+            </div>
+          } @else {
+            <!-- Display row -->
+            <div class="sighting-display">
+              <div class="sighting-main">
+                <span class="animal-name">{{ s.animalName }}</span>
+                <span
+                  class="category-badge"
+                  [style.background]="categoryColor(s.category)"
+                >{{ s.category }}</span>
+                <span class="sighting-date">{{ s.date }}</span>
+              </div>
+              <div class="sighting-sub">
+                <span class="sighting-address">{{ s.address }}</span>
+              </div>
+            </div>
+            <div class="sighting-actions">
+              <button class="btn-edit" (click)="startEditSighting(s)">Edit</button>
+              @if (confirmDeleteId() === s.id) {
+                <button class="btn-confirm-delete" (click)="confirmDelete(s.id)">Confirm?</button>
+                <button class="btn-cancel-sm" (click)="cancelDelete()">No</button>
+              } @else {
+                <button class="btn-delete" (click)="requestDelete(s.id)">Delete</button>
+              }
+            </div>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- Account Section -->
+    <section class="account-section">
+      @if (editMode()) {
+        <div class="edit-profile-form">
+          <h3>Edit Profile</h3>
+          <div class="form-row">
+            <label>Username</label>
+            <input
+              type="text"
+              [ngModel]="editForm().username"
+              (ngModelChange)="updateEditForm('username', $event)"
+            />
+          </div>
+          <div class="form-row">
+            <label>Email</label>
+            <input
+              type="email"
+              [ngModel]="editForm().email"
+              (ngModelChange)="updateEditForm('email', $event)"
+            />
+          </div>
+          <div class="form-row">
+            <label>Role</label>
+            <select
+              [ngModel]="editForm().role"
+              (ngModelChange)="updateEditForm('role', $event)"
+            >
+              @for (r of roles; track r) {
+                <option [value]="r">{{ r }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Avatar</label>
+            <div
+              class="avatar-upload"
+              (drop)="onAvatarDrop($event)"
+              (dragover)="onAvatarDragOver($event)"
+              (click)="avatarInput.click()"
+            >
+              @if (avatarPreview()) {
+                <img [src]="avatarPreview()" alt="Preview" class="avatar-upload-preview" />
+              } @else {
+                <span>Click or drop image</span>
+              }
+              <input
+                #avatarInput
+                type="file"
+                accept="image/*"
+                hidden
+                (change)="onAvatarSelect($event)"
+              />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-save" (click)="saveProfile()">Save</button>
+            <button class="btn-cancel" (click)="cancelEditProfile()">Cancel</button>
+          </div>
+        </div>
+      } @else {
+        <div class="account-buttons">
+          <button class="btn-edit-profile" (click)="startEditProfile()">Edit Profile</button>
+          <button class="btn-logout" (click)="logout()">Logout</button>
+        </div>
+      }
+    </section>
+
+  </div>
+} @else {
+  <div class="placeholder">
+    <h2>Profile</h2>
+    <p>Please log in to view your profile.</p>
+  </div>
+}
