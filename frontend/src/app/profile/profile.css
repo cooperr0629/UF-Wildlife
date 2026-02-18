@@ -5,6 +5,32 @@
   background: #f5f6fa;
 }
 
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  gap: 12px;
+  color: #666;
+}
+
+.btn-login {
+  margin-top: 8px;
+  padding: 0.65rem 2rem;
+  background: #0021A5;
+  color: white;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+
+.btn-login:hover {
+  background: #001a8a;
+}
+
 .profile-page {
   max-width: 600px;
   margin: 0 auto;

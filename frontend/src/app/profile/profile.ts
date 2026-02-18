@@ -1,12 +1,13 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth.service';
 import { SightingService, Sighting, CATEGORY_COLORS } from '../sighting.service';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   templateUrl: './profile.html',
   styleUrl: './profile.css',
 })

@@ -1,0 +1,66 @@
+@if (isEmpty()) {
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#ccc" stroke-width="1.5">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <circle cx="8.5" cy="8.5" r="1.5"/>
+      <path d="M21 15l-5-5L5 21"/>
+    </svg>
+    <h2>No Photos Yet</h2>
+    <p>Go to the Map tab and submit a sighting with a photo to see it here.</p>
+  </div>
+} @else {
+  <div class="photos-page">
+    <h1 class="page-title">Photos</h1>
+
+    @for (entry of grouped() | keyvalue; track entry.key) {
+      <section class="category-section">
+        <div class="category-header">
+          <span class="category-dot" [style.background]="color(entry.key)"></span>
+          <h2 class="category-name">{{ entry.key }}</h2>
+          <span class="category-count">{{ entry.value.length }}</span>
+        </div>
+
+        <div class="card-grid">
+          @for (s of entry.value; track s.id) {
+            <div class="card">
+              @if (s.photoUrl) {
+                <img class="card-photo" [src]="s.photoUrl" [alt]="s.animalName" />
+              } @else {
+                <div class="card-photo-placeholder">
+                  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#ccc" stroke-width="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <path d="M21 15l-5-5L5 21"/>
+                  </svg>
+                </div>
+              }
+              <div class="card-body">
+                <h3 class="card-name">{{ s.animalName }}</h3>
+                <div class="card-meta">
+                  <span class="card-badge" [style.background]="color(s.category)">{{ s.category }}</span>
+                  @if (s.behavior) {
+                    <span class="card-behavior">{{ s.behavior }}</span>
+                  }
+                </div>
+                <div class="card-details">
+                  <span>Qty: {{ s.quantity }}</span>
+                  <span>{{ s.date }}</span>
+                </div>
+                @if (s.description) {
+                  <p class="card-desc">{{ s.description }}</p>
+                }
+                <div class="card-location">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#999" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <span>{{ s.address }}</span>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    }
+  </div>
+}

@@ -100,22 +100,9 @@
           </div>
         </div>
 
-        <!-- Animal Name -->
-        <div class="form-group">
-          <label class="form-label" for="animal-name">Animal Name <span class="required">*</span></label>
-          <input
-            id="animal-name"
-            type="text"
-            class="form-input"
-            placeholder="e.g. Eastern Gray Squirrel"
-            [ngModel]="sighting().animalName"
-            (ngModelChange)="updateField('animalName', $event)"
-          />
-        </div>
-
         <!-- Category -->
         <div class="form-group">
-          <label class="form-label">Category</label>
+          <label class="form-label">Category <span class="required">*</span></label>
           <div class="category-chips">
             @for (cat of categories; track cat) {
               <button
@@ -123,13 +110,35 @@
                 class="category-chip"
                 [class.selected]="sighting().category === cat"
                 [style.--chip-color]="categoryColor(cat)"
-                (click)="updateField('category', cat)"
+                (click)="onCategoryChipClick(cat)"
               >
                 <span class="chip-dot"></span>
                 {{ cat }}
               </button>
             }
           </div>
+        </div>
+
+        <!-- Animal Species -->
+        <div class="form-group">
+          <label class="form-label" for="animal-name">Species <span class="required">*</span></label>
+          @if (availableSpecies.length > 0) {
+            <select
+              id="animal-name"
+              class="form-input"
+              [ngModel]="sighting().animalName"
+              (ngModelChange)="updateField('animalName', $event)"
+            >
+              <option value="">Select species...</option>
+              @for (sp of availableSpecies; track sp) {
+                <option [value]="sp">{{ sp }}</option>
+              }
+            </select>
+          } @else if (sighting().category) {
+            <p class="no-species-msg">No species available for this category yet.</p>
+          } @else {
+            <p class="no-species-msg">Please select a category first.</p>
+          }
         </div>
 
         <!-- Quantity -->

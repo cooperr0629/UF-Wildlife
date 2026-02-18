@@ -4,6 +4,7 @@ import { SignupComponent } from './signup/signup';
 import { HomeComponent } from './home/home';
 import { MapComponent } from './map/map';
 import { SpeciesComponent } from './species/species';
+import { PhotosComponent } from './photos/photos';
 import { ProfileComponent } from './profile/profile';
 
 export const routes: Routes = [
@@ -17,6 +18,7 @@ export const routes: Routes = [
       { path: '', redirectTo: 'map', pathMatch: 'full' },
       { path: 'map', component: MapComponent },
       { path: 'species', component: SpeciesComponent },
+      { path: 'photos', component: PhotosComponent },
       { path: 'profile', component: ProfileComponent },
     ],
   },

@@ -11,6 +11,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SightingService, Sighting, CATEGORY_COLORS } from '../sighting.service';
 import { AuthService } from '../auth.service';
+import { UploadService } from '../upload.service';
 import type * as L from 'leaflet';
 
 interface NominatimResult {
@@ -44,6 +45,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   private sightingService = inject(SightingService);
   private authService = inject(AuthService);
+  private uploadService = inject(UploadService);
   private map: L.Map | null = null;
   private leaflet: typeof L | null = null;
   private searchMarker: L.Marker | null = null;
@@ -67,6 +69,25 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   categories = ['Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish', 'Insect', 'Other'];
   behaviors = ['Resting', 'Feeding', 'Moving', 'Nesting', 'Swimming', 'Flying', 'Unknown'];
+
+  speciesByCategory: Record<string, string[]> = {
+    'Mammal': ['Squirrel'],
+    'Bird': [],
+    'Reptile': [],
+    'Amphibian': [],
+    'Fish': [],
+    'Insect': [],
+    'Other': [],
+  };
+
+  get availableSpecies(): string[] {
+    const cat = this.sighting().category;
+    return this.speciesByCategory[cat] || [];
+  }
+
+  onCategoryChipClick(cat: string) {
+    this.sighting.set({ ...this.sighting(), category: cat, animalName: '' });
+  }
 
   constructor() {
     effect(() => {
@@ -369,6 +390,19 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
     this.isSubmitting.set(true);
 
+    // Upload photo to Supabase Storage if a file was selected
+    let photoUrl: string | null = null;
+    const file = this.photoFile();
+    if (file) {
+      try {
+        photoUrl = await this.uploadService.uploadPhoto(file);
+      } catch (err) {
+        console.error('Photo upload failed:', err);
+        // Fall back to base64 preview if upload fails
+        photoUrl = this.photoPreview();
+      }
+    }
+
     const newSighting: Sighting = {
       id: crypto.randomUUID(),
       userId: this.authService.currentUser()?.id || '',
@@ -382,7 +416,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       description: s.description,
       date: s.date,
       time: s.time,
-      photoUrl: this.photoPreview(),
+      photoUrl,
     };
 
     await this.sightingService.add(newSighting);

@@ -19,7 +19,7 @@ export class LoginComponent {
   errorMessage = signal('');
   isLoading = signal(false);
 
-  constructor(private router: Router) {}
+  constructor(public router: Router) {}
 
   async onSubmit() {
     const emailValue = this.email().trim();

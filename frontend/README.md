@@ -35,6 +35,7 @@ ng version
 ```bash
 cd frontend
 npm install
+npm install leaflet @types/leaflet
 ```
 
 This installs all frontend dependencies defined in <span style="color:blue">package.json</span>.
