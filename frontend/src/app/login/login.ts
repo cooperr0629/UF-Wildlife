@@ -21,7 +21,7 @@ export class LoginComponent {
 
   constructor(private router: Router) {}
 
-  onSubmit() {
+  async onSubmit() {
     const emailValue = this.email().trim();
     const passwordValue = this.password();
 
@@ -43,12 +43,14 @@ export class LoginComponent {
     this.errorMessage.set('');
     this.isLoading.set(true);
 
-    // Simulate login and set user data
-    setTimeout(() => {
-      this.authService.login(emailValue, passwordValue);
-      this.isLoading.set(false);
+    try {
+      await this.authService.login(emailValue, passwordValue);
       this.router.navigate(['/home']);
-    }, 1000);
+    } catch (err: any) {
+      this.errorMessage.set(err.message || 'Login failed. Please try again.');
+    } finally {
+      this.isLoading.set(false);
+    }
   }
 
   private isValidEmail(email: string): boolean {

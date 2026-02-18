@@ -132,3 +132,139 @@ ng serve --open
 ```bash
 sudo chown -R $(id -u):$(id -g) ~/.npm
 ```
+
+> **Windows PowerShell tip:** If your path contains spaces, use single quotes:
+> ```powershell
+> cd 'C:\Users\Yao Min\my-todo\UF-Wildlife-main\backend'
+> ```
+
+---
+
+## 📡 API Endpoints
+
+All endpoints include CORS headers for `http://localhost:4200`.
+
+### Authentication
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/signup` | Register a new user, returns JWT token |
+| POST | `/api/login` | Login, returns JWT token |
+
+### Sightings (Wildlife Records)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/sightings` | Get all sighting records (newest first) |
+| POST | `/api/sightings` | Create a new sighting record |
+| PUT | `/api/sightings/{id}` | Update an existing record |
+| DELETE | `/api/sightings/{id}` | Delete a record |
+
+#### POST /api/sightings — Request Body
+```json
+{
+  "species": "White-tailed Deer",
+  "image_url": "",
+  "latitude": 29.6436,
+  "longitude": -82.3549,
+  "address": "Museum Road, Gainesville, FL...",
+  "category": "Mammal",
+  "quantity": 2,
+  "behavior": "Feeding",
+  "description": "Spotted near the lake",
+  "date": "2026-02-18",
+  "time": "14:30",
+  "userId": "5",
+  "username": "min.yao"
+}
+```
+
+---
+
+## 🗄 Database Schema
+
+### `users`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | SERIAL PK | Auto-increment |
+| username | TEXT UNIQUE | |
+| email | TEXT UNIQUE | |
+| password | TEXT | bcrypt hashed |
+| created_at | TIMESTAMP | |
+
+### `animals` (Sighting Records)
+| Column | Type | Notes |
+|--------|------|-------|
+| id | SERIAL PK | Auto-increment |
+| species | TEXT | Animal name (maps to frontend `animalName`) |
+| image_url | TEXT | Photo URL / base64 (maps to frontend `photoUrl`) |
+| latitude | DOUBLE PRECISION | |
+| longitude | DOUBLE PRECISION | |
+| address | TEXT | Location name from Nominatim reverse geocoding |
+| category | TEXT | Mammal / Bird / Reptile / Amphibian / Fish / Insect / Other |
+| quantity | INTEGER | Default 1 |
+| behavior | TEXT | Resting / Feeding / Moving / Nesting / Swimming / Flying / Unknown |
+| description | TEXT | Free-form notes |
+| date | TEXT | Sighting date (YYYY-MM-DD) |
+| time | TEXT | Sighting time (HH:MM) |
+| user_id | INTEGER | FK → users.id |
+| username | TEXT | Denormalized creator username |
+| created_at | TIMESTAMP | |
+
+### `messages`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | SERIAL PK | |
+| sender_id | TEXT | |
+| sender | TEXT | |
+| content | TEXT | |
+| created_at | TIMESTAMP | |
+
+---
+
+## 🔧 Environment Variables (`backend/.env`)
+
+```
+DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/postgres?sslmode=require
+JWT_SECRET=<your-secret-key>
+```
+
+The `.env` file is loaded automatically at startup via `loadEnv(".env")` in `main.go`.
+
+---
+
+## 🗺 Frontend Pages
+
+| Route | Component | Description |
+|-------|-----------|-------------|
+| `/login` | LoginComponent | Email + password login |
+| `/signup` | SignupComponent | New account registration |
+| `/home/map` | MapComponent | Interactive Leaflet map — click to record a sighting |
+| `/home/species` | SpeciesComponent | All sightings grouped by category |
+| `/home/profile` | ProfileComponent | Personal stats, my sightings, edit profile, logout |
+
+---
+
+## 🧩 Key Frontend Services
+
+### `SightingService` (`sighting.service.ts`)
+- Calls `loadAll()` in the constructor — data is fetched from the backend on every page load automatically
+- `add(sighting)` — POST to backend, then updates local Angular signal
+- `remove(id)` — DELETE on backend, then updates local signal
+- `update(id, data)` — PUT on backend, then updates local signal
+- `sightingsByUser(userId)` — filters sightings by user ID (used in Profile)
+
+### `AuthService` (`auth.service.ts`)
+- `login()` / `signup()` — calls backend, stores JWT in `localStorage`
+- `currentUser` — Angular signal holding the logged-in user object
+- `logout()` — clears token and navigates to `/login`
+
+---
+
+## ⚠️ Known Limitations
+
+| Issue | Status |
+|-------|--------|
+| Login state lost on page refresh | `AuthService` constructor needs to restore `currentUser` signal from `localStorage` |
+| Profile "My Sightings" may not filter correctly | Backend `INSERT` for sightings currently does not save `user_id` — needs to be added |
+| Photo storage as base64 in DB | Large images will bloat the database — recommend migrating to Supabase Storage |

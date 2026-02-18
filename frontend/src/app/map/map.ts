@@ -123,7 +123,8 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       popupAnchor: [0, -44],
     });
 
-    // Render any existing sightings
+    // Load sightings from backend, then render
+    await this.sightingService.loadAll();
     this.renderSightingMarkers(this.sightingService.sightings());
 
     // Click anywhere on the map to add a sighting
@@ -362,7 +363,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.photoFile.set(null);
   }
 
-  submitSighting() {
+  async submitSighting() {
     const s = this.sighting();
     if (!s.animalName.trim()) return;
 
@@ -384,7 +385,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       photoUrl: this.photoPreview(),
     };
 
-    this.sightingService.add(newSighting);
+    await this.sightingService.add(newSighting);
 
     // Remove the search marker since a category-colored one replaces it
     if (this.searchMarker) {

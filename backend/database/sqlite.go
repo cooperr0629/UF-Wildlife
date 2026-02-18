@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 var DB *sql.DB
@@ -17,7 +17,7 @@ func InitDB() {
 		log.Fatal("DATABASE_URL environment variable is not set")
 	}
 
-	DB, err = sql.Open("postgres", connStr)
+	DB, err = sql.Open("pgx", connStr)
 	if err != nil {
 		log.Fatal("Error opening database:", err)
 	}
@@ -47,6 +47,13 @@ func createTables() {
 		image_url TEXT,
 		latitude DOUBLE PRECISION NOT NULL,
 		longitude DOUBLE PRECISION NOT NULL,
+		address TEXT,
+		category TEXT,
+		quantity INTEGER DEFAULT 1,
+		behavior TEXT,
+		description TEXT,
+		date TEXT,
+		time TEXT,
 		user_id INTEGER,
 		username TEXT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -78,4 +85,20 @@ func createTables() {
 	}
 
 	log.Println("Database tables created successfully")
+
+	// Add missing columns to existing animals table (safe to run repeatedly)
+	alterStmts := []string{
+		"ALTER TABLE animals ADD COLUMN IF NOT EXISTS address TEXT",
+		"ALTER TABLE animals ADD COLUMN IF NOT EXISTS category TEXT",
+		"ALTER TABLE animals ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1",
+		"ALTER TABLE animals ADD COLUMN IF NOT EXISTS behavior TEXT",
+		"ALTER TABLE animals ADD COLUMN IF NOT EXISTS description TEXT",
+		"ALTER TABLE animals ADD COLUMN IF NOT EXISTS date TEXT",
+		"ALTER TABLE animals ADD COLUMN IF NOT EXISTS time TEXT",
+	}
+	for _, stmt := range alterStmts {
+		if _, err := DB.Exec(stmt); err != nil {
+			log.Printf("Warning: %s — %v", stmt, err)
+		}
+	}
 }
