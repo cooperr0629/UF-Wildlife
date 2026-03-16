@@ -9,10 +9,13 @@ import {
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SightingService, Sighting, CATEGORY_COLORS } from '../sighting.service';
+import { SightingService, Sighting, CATEGORY_COLORS, SPECIES_BY_CATEGORY } from '../sighting.service';
 import { AuthService } from '../auth.service';
 import { UploadService } from '../upload.service';
 import type * as L from 'leaflet';
+
+// Module-level reference survives HMR cycles
+let _hmrMapInstance: L.Map | null = null;
 
 interface NominatimResult {
   place_id: number;
@@ -70,15 +73,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   categories = ['Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish', 'Insect', 'Other'];
   behaviors = ['Resting', 'Feeding', 'Moving', 'Nesting', 'Swimming', 'Flying', 'Unknown'];
 
-  speciesByCategory: Record<string, string[]> = {
-    'Mammal': ['Squirrel'],
-    'Bird': [],
-    'Reptile': [],
-    'Amphibian': [],
-    'Fish': [],
-    'Insect': [],
-    'Other': [],
-  };
+  speciesByCategory = SPECIES_BY_CATEGORY;
 
   get availableSpecies(): string[] {
     const cat = this.sighting().category;
@@ -118,10 +113,17 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     const leaflet = await import('leaflet');
     this.leaflet = leaflet;
 
+    // Clean up any existing map instance (handles HMR reinit)
+    if (_hmrMapInstance) {
+      _hmrMapInstance.remove();
+      _hmrMapInstance = null;
+    }
+
     this.map = leaflet.map('map', {
       center: [29.6436, -82.3549],
       zoom: 15,
     });
+    _hmrMapInstance = this.map;
 
     leaflet
       .tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -445,5 +447,6 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy() {
     this.map?.remove();
+    _hmrMapInstance = null;
   }
 }
