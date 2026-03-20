@@ -7,6 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run",
     "serve:ssr:frontend": "node dist/frontend/server/server.mjs"
   },
   "prettier": {
@@ -45,6 +47,7 @@
     "@angular/compiler-cli": "^21.1.0",
     "@types/express": "^5.0.1",
     "@types/node": "^20.17.19",
+    "cypress": "^15.12.0",
     "jsdom": "^27.1.0",
     "typescript": "~5.9.2",
     "vitest": "^4.0.8"
