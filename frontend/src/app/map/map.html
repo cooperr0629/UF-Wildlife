@@ -47,6 +47,16 @@
 
 <div id="map"></div>
 
+<!-- Heatmap toggle button -->
+<button class="heatmap-toggle" (click)="toggleHeatmap()" [class.active]="showHeatmap()">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+    <circle cx="12" cy="12" r="10" [attr.stroke]="showHeatmap() ? '#fff' : '#FA7C1C'" stroke-width="1.5" stroke-dasharray="3 2" fill="none"/>
+    <circle cx="12" cy="12" r="6" [attr.fill]="showHeatmap() ? 'rgba(255,255,255,0.3)' : 'rgba(250,124,28,0.25)'" fill-opacity="1"/>
+    <circle cx="12" cy="12" r="3" [attr.fill]="showHeatmap() ? '#fff' : '#E53200'"/>
+  </svg>
+  {{ showHeatmap() ? 'Markers' : 'Heatmap' }}
+</button>
+
 <!-- Sighting Form Modal -->
 @if (showSightingForm()) {
   <div class="modal-overlay" (click)="closeSightingForm()">

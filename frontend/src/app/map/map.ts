@@ -54,6 +54,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private searchMarker: L.Marker | null = null;
   private redIcon: L.Icon | null = null;
   private sightingMarkers: L.Marker[] = [];
+  private heatmapLayers: L.CircleMarker[] = [];
   private iconCache = new Map<string, L.Icon>();
 
   query = signal('');
@@ -61,6 +62,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   showResults = signal(false);
   isSearching = signal(false);
   searchError = signal('');
+  showHeatmap = signal(false);
 
   // Sighting form
   showSightingForm = signal(false);
@@ -87,8 +89,20 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   constructor() {
     effect(() => {
       const list = this.sightingService.sightings();
-      this.renderSightingMarkers(list);
+      const isHeatmap = this.showHeatmap();
+      if (isHeatmap) {
+        for (const m of this.sightingMarkers) m.remove();
+        this.sightingMarkers = [];
+        this.renderHeatmap(list);
+      } else {
+        this.clearHeatmap();
+        this.renderSightingMarkers(list);
+      }
     });
+  }
+
+  toggleHeatmap() {
+    this.showHeatmap.set(!this.showHeatmap());
   }
 
   private defaultSighting(): SightingForm {
@@ -445,7 +459,43 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  private renderHeatmap(sightings: Sighting[]) {
+    if (!this.map || !this.leaflet) return;
+    this.clearHeatmap();
+
+    for (const s of sightings) {
+      const outerRadius = Math.min(22 + s.quantity * 6, 58);
+      const innerRadius = Math.max(outerRadius * 0.45, 8);
+
+      const outer = this.leaflet.circleMarker([s.latitude, s.longitude], {
+        radius: outerRadius,
+        fillColor: '#FA7C1C',
+        fillOpacity: 0.14,
+        color: 'transparent',
+        weight: 0,
+        interactive: false,
+      }).addTo(this.map);
+
+      const inner = this.leaflet.circleMarker([s.latitude, s.longitude], {
+        radius: innerRadius,
+        fillColor: '#E53200',
+        fillOpacity: 0.42,
+        color: 'transparent',
+        weight: 0,
+        interactive: false,
+      }).addTo(this.map);
+
+      this.heatmapLayers.push(outer, inner);
+    }
+  }
+
+  private clearHeatmap() {
+    for (const l of this.heatmapLayers) l.remove();
+    this.heatmapLayers = [];
+  }
+
   ngOnDestroy() {
+    this.clearHeatmap();
     this.map?.remove();
     _hmrMapInstance = null;
   }
