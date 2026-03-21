@@ -95,6 +95,7 @@ func createTables() {
 		"ALTER TABLE animals ADD COLUMN IF NOT EXISTS description TEXT",
 		"ALTER TABLE animals ADD COLUMN IF NOT EXISTS date TEXT",
 		"ALTER TABLE animals ADD COLUMN IF NOT EXISTS time TEXT",
+		"ALTER TABLE messages ADD COLUMN IF NOT EXISTS sighting_id INTEGER",
 	}
 	for _, stmt := range alterStmts {
 		if _, err := DB.Exec(stmt); err != nil {

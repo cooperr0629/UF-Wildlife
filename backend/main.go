@@ -92,6 +92,11 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !strings.HasSuffix(req.Email, "@ufl.edu") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Only @ufl.edu email addresses are allowed"})
+		return
+	}
+
 	if req.Password != req.ConfirmPassword {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Passwords do not match"})
 		return
@@ -150,6 +155,11 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !strings.HasSuffix(req.Email, "@ufl.edu") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Only @ufl.edu email addresses are allowed"})
+		return
+	}
+
 	var user models.User
 	err := database.DB.QueryRow(
 		"SELECT id, username, email, password FROM users WHERE email = $1",
@@ -193,13 +203,26 @@ func handleGetSightings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := database.DB.Query(`
-		SELECT id, species, COALESCE(image_url,''), latitude, longitude,
-		       COALESCE(address,''), COALESCE(category,''), COALESCE(quantity,1),
-		       COALESCE(behavior,''), COALESCE(description,''),
-		       COALESCE(date,''), COALESCE(time,''),
-		       COALESCE(user_id,0), COALESCE(username,''), created_at
-		FROM animals ORDER BY created_at DESC`)
+	category := r.URL.Query().Get("category")
+	var rows *sql.Rows
+	var err error
+	if category != "" {
+		rows, err = database.DB.Query(`
+			SELECT id, species, COALESCE(image_url,''), latitude, longitude,
+			       COALESCE(address,''), COALESCE(category,''), COALESCE(quantity,1),
+			       COALESCE(behavior,''), COALESCE(description,''),
+			       COALESCE(date,''), COALESCE(time,''),
+			       COALESCE(user_id,0), COALESCE(username,''), created_at
+			FROM animals WHERE category = $1 ORDER BY created_at DESC`, category)
+	} else {
+		rows, err = database.DB.Query(`
+			SELECT id, species, COALESCE(image_url,''), latitude, longitude,
+			       COALESCE(address,''), COALESCE(category,''), COALESCE(quantity,1),
+			       COALESCE(behavior,''), COALESCE(description,''),
+			       COALESCE(date,''), COALESCE(time,''),
+			       COALESCE(user_id,0), COALESCE(username,''), created_at
+			FROM animals ORDER BY created_at DESC`)
+	}
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to query sightings"})
 		return
@@ -325,8 +348,153 @@ func handleDeleteSighting(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
+// ---------- Stats ----------
+
+func handleStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	var totalSightings int
+	if err := database.DB.QueryRow("SELECT COUNT(*) FROM animals").Scan(&totalSightings); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to query sightings count"})
+		return
+	}
+
+	var totalUsers int
+	if err := database.DB.QueryRow("SELECT COUNT(*) FROM users").Scan(&totalUsers); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to query users count"})
+		return
+	}
+
+	catRows, err := database.DB.Query("SELECT COALESCE(category,'Unknown'), COUNT(*) FROM animals GROUP BY category")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to query category stats"})
+		return
+	}
+	defer catRows.Close()
+
+	byCategory := map[string]int{}
+	for catRows.Next() {
+		var cat string
+		var count int
+		if err := catRows.Scan(&cat, &count); err != nil {
+			continue
+		}
+		byCategory[cat] = count
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"total_sightings": totalSightings,
+		"total_users":     totalUsers,
+		"by_category":     byCategory,
+	})
+}
+
+// ---------- Comments ----------
+
+func handleGetComments(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	sightingIDStr := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/sightings/"), "/")[0]
+	sightingID, err := strconv.Atoi(sightingIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid sighting ID"})
+		return
+	}
+
+	rows, err := database.DB.Query(
+		"SELECT id, COALESCE(sighting_id,0), sender_id, sender, content, created_at FROM messages WHERE sighting_id = $1 ORDER BY created_at ASC",
+		sightingID,
+	)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to query comments"})
+		return
+	}
+	defer rows.Close()
+
+	comments := []models.Message{}
+	for rows.Next() {
+		var m models.Message
+		if err := rows.Scan(&m.ID, &m.SightingID, &m.SenderID, &m.Sender, &m.Content, &m.CreateTime); err != nil {
+			continue
+		}
+		comments = append(comments, m)
+	}
+
+	writeJSON(w, http.StatusOK, comments)
+}
+
+func handleCreateComment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	sightingIDStr := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/sightings/"), "/")[0]
+	sightingID, err := strconv.Atoi(sightingIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid sighting ID"})
+		return
+	}
+
+	var req models.CreateCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+		return
+	}
+
+	if req.Content == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Content is required"})
+		return
+	}
+
+	var id int
+	err = database.DB.QueryRow(
+		"INSERT INTO messages (sighting_id, sender_id, sender, content) VALUES ($1, $2, $3, $4) RETURNING id",
+		sightingID, req.SenderID, req.Sender, req.Content,
+	).Scan(&id)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to create comment"})
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{"id": id})
+}
+
+func handleDeleteComment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/messages/")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid comment ID"})
+		return
+	}
+
+	result, err := database.DB.Exec("DELETE FROM messages WHERE id=$1", id)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to delete comment"})
+		return
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "Comment not found"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
 func handleSightings(w http.ResponseWriter, r *http.Request) {
-	// Route /api/sightings and /api/sightings/{id}
+	// Route /api/sightings, /api/sightings/{id}, /api/sightings/{id}/messages
 	path := strings.TrimPrefix(r.URL.Path, "/api/sightings")
 	path = strings.TrimPrefix(path, "/")
 
@@ -337,6 +505,20 @@ func handleSightings(w http.ResponseWriter, r *http.Request) {
 			handleGetSightings(w, r)
 		case http.MethodPost:
 			handleCreateSighting(w, r)
+		default:
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		}
+		return
+	}
+
+	// Check if path ends with /messages: {id}/messages
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) == 2 && parts[1] == "messages" {
+		switch r.Method {
+		case http.MethodGet:
+			handleGetComments(w, r)
+		case http.MethodPost:
+			handleCreateComment(w, r)
 		default:
 			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
 		}
@@ -362,6 +544,8 @@ func main() {
 	http.HandleFunc("/api/login", corsMiddleware(handleLogin))
 	http.HandleFunc("/api/sightings", corsMiddleware(handleSightings))
 	http.HandleFunc("/api/sightings/", corsMiddleware(handleSightings))
+	http.HandleFunc("/api/stats", corsMiddleware(handleStats))
+	http.HandleFunc("/api/messages/", corsMiddleware(handleDeleteComment))
 
 	http.HandleFunc("/api/parking", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -24,6 +24,14 @@ interface NominatimResult {
   lon: string;
 }
 
+interface Comment {
+  ID: number;
+  SightingID: number;
+  Sender: string;
+  Content: string;
+  CreateTime: string;
+}
+
 interface SightingForm {
   latitude: number;
   longitude: number;
@@ -71,6 +79,13 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   photoFile = signal<File | null>(null);
   isDragging = signal(false);
   isSubmitting = signal(false);
+
+  // Sighting detail panel + comments
+  selectedSighting = signal<Sighting | null>(null);
+  comments = signal<Comment[]>([]);
+  commentText = signal('');
+  isLoadingComments = signal(false);
+  isSubmittingComment = signal(false);
 
   categories = ['Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish', 'Insect', 'Other'];
   behaviors = ['Resting', 'Feeding', 'Moving', 'Nesting', 'Swimming', 'Flying', 'Unknown'];
@@ -244,17 +259,11 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
     for (const s of sightings) {
       const icon = this.getCategoryIcon(s.category);
-      const popup = `<strong>${s.animalName}</strong><br/>
-        <span style="color:${CATEGORY_COLORS[s.category] || CATEGORY_COLORS['Other']}">${s.category || 'Other'}</span>
-        &middot; Qty: ${s.quantity}<br/>
-        ${s.behavior ? s.behavior + '<br/>' : ''}
-        <small>${s.date} ${s.time}</small>`;
-
       const marker = this.leaflet
         .marker([s.latitude, s.longitude], { icon })
-        .addTo(this.map)
-        .bindPopup(popup);
+        .addTo(this.map);
 
+      marker.on('click', () => this.openSightingDetail(s));
       this.sightingMarkers.push(marker);
     }
   }
@@ -445,6 +454,55 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
     this.isSubmitting.set(false);
     this.showSightingForm.set(false);
+  }
+
+  openSightingDetail(s: Sighting) {
+    this.selectedSighting.set(s);
+    this.commentText.set('');
+    this.loadComments(s.id);
+  }
+
+  closeSightingDetail() {
+    this.selectedSighting.set(null);
+    this.comments.set([]);
+    this.commentText.set('');
+  }
+
+  async loadComments(sightingId: string) {
+    this.isLoadingComments.set(true);
+    try {
+      const res = await fetch(`http://localhost:8080/api/sightings/${sightingId}/messages`);
+      const data = await res.json();
+      this.comments.set(Array.isArray(data) ? data : []);
+    } catch {
+      this.comments.set([]);
+    } finally {
+      this.isLoadingComments.set(false);
+    }
+  }
+
+  async submitComment() {
+    const content = this.commentText().trim();
+    const s = this.selectedSighting();
+    if (!content || !s) return;
+
+    this.isSubmittingComment.set(true);
+    try {
+      const user = this.authService.currentUser();
+      await fetch(`http://localhost:8080/api/sightings/${s.id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          sender: user?.username ?? 'Anonymous',
+          sender_id: user?.id ?? '',
+        }),
+      });
+      this.commentText.set('');
+      await this.loadComments(s.id);
+    } finally {
+      this.isSubmittingComment.set(false);
+    }
   }
 
   clearSearch() {

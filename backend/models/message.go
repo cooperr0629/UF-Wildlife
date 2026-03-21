@@ -5,6 +5,7 @@ import "time"
 
 type Message struct {
 	ID         int
+	SightingID int
 	SenderID   string
 	Sender     string
 	Content    string
@@ -15,4 +16,10 @@ type ChatMessage struct {
 	Content  string
 	SenderID int
 	Sender   string
+}
+
+type CreateCommentRequest struct {
+	Content  string `json:"content"`
+	SenderID string `json:"sender_id"`
+	Sender   string `json:"sender"`
 }

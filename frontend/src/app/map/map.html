@@ -57,6 +57,82 @@
   {{ showHeatmap() ? 'Markers' : 'Heatmap' }}
 </button>
 
+<!-- Sighting Detail Panel -->
+@if (selectedSighting()) {
+  <div class="detail-panel">
+    <div class="detail-header">
+      <div class="detail-title">
+        <span class="detail-category-dot" [style.background]="categoryColor(selectedSighting()!.category)"></span>
+        <h3>{{ selectedSighting()!.animalName }}</h3>
+      </div>
+      <button class="detail-close" (click)="closeSightingDetail()">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="detail-meta">
+      <span class="detail-badge" [style.background]="categoryColor(selectedSighting()!.category)">{{ selectedSighting()!.category || 'Other' }}</span>
+      <span>× {{ selectedSighting()!.quantity }}</span>
+      @if (selectedSighting()!.behavior) {
+        <span>· {{ selectedSighting()!.behavior }}</span>
+      }
+    </div>
+
+    <div class="detail-info">
+      <small>{{ selectedSighting()!.date }} {{ selectedSighting()!.time }}</small>
+      @if (selectedSighting()!.address) {
+        <small class="detail-address">{{ selectedSighting()!.address }}</small>
+      }
+    </div>
+
+    @if (selectedSighting()!.photoUrl) {
+      <img [src]="selectedSighting()!.photoUrl" class="detail-photo" alt="Sighting photo" />
+    }
+
+    @if (selectedSighting()!.description) {
+      <p class="detail-desc">{{ selectedSighting()!.description }}</p>
+    }
+
+    <!-- Comments -->
+    <div class="comments-section">
+      <h4 class="comments-title">Comments</h4>
+      @if (isLoadingComments()) {
+        <p class="comments-loading">Loading...</p>
+      } @else if (comments().length === 0) {
+        <p class="comments-empty">No comments yet. Be the first!</p>
+      } @else {
+        <div class="comments-list">
+          @for (c of comments(); track c.ID) {
+            <div class="comment-item">
+              <span class="comment-sender">{{ c.Sender }}</span>
+              <span class="comment-content">{{ c.Content }}</span>
+            </div>
+          }
+        </div>
+      }
+      <div class="comment-input-row">
+        <input
+          type="text"
+          class="comment-input"
+          placeholder="Add a comment..."
+          [ngModel]="commentText()"
+          (ngModelChange)="commentText.set($event)"
+          (keydown.enter)="submitComment()"
+        />
+        <button
+          class="comment-send"
+          (click)="submitComment()"
+          [disabled]="!commentText().trim() || isSubmittingComment()"
+        >
+          {{ isSubmittingComment() ? '...' : 'Send' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
 <!-- Sighting Form Modal -->
 @if (showSightingForm()) {
   <div class="modal-overlay" (click)="closeSightingForm()">
