@@ -208,20 +208,28 @@ func handleGetSightings(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if category != "" {
 		rows, err = database.DB.Query(`
-			SELECT id, species, COALESCE(image_url,''), latitude, longitude,
-			       COALESCE(address,''), COALESCE(category,''), COALESCE(quantity,1),
-			       COALESCE(behavior,''), COALESCE(description,''),
-			       COALESCE(date,''), COALESCE(time,''),
-			       COALESCE(user_id,0), COALESCE(username,''), created_at
-			FROM animals WHERE category = $1 ORDER BY created_at DESC`, category)
+			SELECT a.id, a.species, COALESCE(a.image_url,''), a.latitude, a.longitude,
+			       COALESCE(a.address,''), COALESCE(a.category,''), COALESCE(a.quantity,1),
+			       COALESCE(a.behavior,''), COALESCE(a.description,''),
+			       COALESCE(a.date,''), COALESCE(a.time,''),
+			       COALESCE(a.user_id,0),
+			       COALESCE(NULLIF(a.username,''), u.username, ''),
+			       a.created_at
+			FROM animals a
+			LEFT JOIN users u ON a.user_id = u.id
+			WHERE a.category = $1 ORDER BY a.created_at DESC`, category)
 	} else {
 		rows, err = database.DB.Query(`
-			SELECT id, species, COALESCE(image_url,''), latitude, longitude,
-			       COALESCE(address,''), COALESCE(category,''), COALESCE(quantity,1),
-			       COALESCE(behavior,''), COALESCE(description,''),
-			       COALESCE(date,''), COALESCE(time,''),
-			       COALESCE(user_id,0), COALESCE(username,''), created_at
-			FROM animals ORDER BY created_at DESC`)
+			SELECT a.id, a.species, COALESCE(a.image_url,''), a.latitude, a.longitude,
+			       COALESCE(a.address,''), COALESCE(a.category,''), COALESCE(a.quantity,1),
+			       COALESCE(a.behavior,''), COALESCE(a.description,''),
+			       COALESCE(a.date,''), COALESCE(a.time,''),
+			       COALESCE(a.user_id,0),
+			       COALESCE(NULLIF(a.username,''), u.username, ''),
+			       a.created_at
+			FROM animals a
+			LEFT JOIN users u ON a.user_id = u.id
+			ORDER BY a.created_at DESC`)
 	}
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to query sightings"})
@@ -263,14 +271,20 @@ func handleCreateSighting(w http.ResponseWriter, r *http.Request) {
 		req.Quantity = 1
 	}
 
+	// Convert UserID string to nullable int for the FK column
+	var userIDArg interface{}
+	if uid, err := strconv.Atoi(req.UserID); err == nil && uid > 0 {
+		userIDArg = uid
+	}
+
 	var id int
 	err := database.DB.QueryRow(`
-		INSERT INTO animals (species, image_url, latitude, longitude, address, category, quantity, behavior, description, date, time, username)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+		INSERT INTO animals (species, image_url, latitude, longitude, address, category, quantity, behavior, description, date, time, username, user_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 		RETURNING id`,
 		req.Species, req.ImageURL, req.Latitude, req.Longitude,
 		req.Address, req.Category, req.Quantity, req.Behavior,
-		req.Description, req.Date, req.Time, req.Username,
+		req.Description, req.Date, req.Time, req.Username, userIDArg,
 	).Scan(&id)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to create sighting: " + err.Error()})

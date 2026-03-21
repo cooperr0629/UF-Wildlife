@@ -54,6 +54,12 @@
   flex-shrink: 0;
 }
 
+.detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .detail-close {
   background: none;
   border: none;
@@ -65,6 +71,45 @@
 }
 
 .detail-close:hover { color: #333; }
+
+.detail-delete {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: #ffebee;
+  color: #c62828;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.detail-delete:hover { background: #ffcdd2; }
+
+.detail-confirm-delete {
+  border: none;
+  background: #c62828;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.detail-cancel-delete {
+  border: none;
+  background: #eee;
+  color: #555;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
 
 .detail-meta {
   display: flex;
@@ -99,6 +144,14 @@
 .detail-info small {
   font-size: 12px;
   color: #888;
+}
+
+.detail-uploader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #0021A5;
+  font-weight: 600;
 }
 
 .detail-address {
@@ -434,6 +487,62 @@
   text-align: center;
 }
 
+/* ── Login Required Prompt ── */
+.login-required-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 28px;
+  text-align: center;
+  max-width: 320px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.16);
+}
+
+.login-required-modal h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 12px 0 6px;
+}
+
+.login-required-modal p {
+  font-size: 14px;
+  color: #666;
+  margin: 0 0 20px;
+}
+
+.login-required-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.btn-go-login {
+  padding: 9px 22px;
+  background: #0021A5;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.btn-go-login:hover {
+  background: #001a8a;
+}
+
+.btn-dismiss {
+  padding: 9px 22px;
+  background: #eee;
+  color: #555;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* ── Modal overlay ── */
 .modal-overlay {
   position: fixed;
@@ -685,16 +794,87 @@ select.form-input {
 .photo-preview {
   position: relative;
   border-radius: 12px;
-  overflow: hidden;
-  max-height: 200px;
+  overflow: visible;
 }
 
-.photo-preview img {
+/* Banner-shaped crop frame */
+.banner-crop-frame {
+  position: relative;
   width: 100%;
-  max-height: 200px;
+  height: 150px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111;
+}
+
+.banner-crop-frame img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
-  border-radius: 12px;
+  transition: object-position 0.1s ease;
+}
+
+/* Hint overlay shown on portrait photos */
+.crop-hint-overlay {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+  border-radius: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Slider row below banner */
+.crop-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px 4px;
+  color: #888;
+}
+
+.crop-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: #ddd;
+  outline: none;
+  cursor: pointer;
+}
+
+.crop-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0021A5;
+  cursor: grab;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+
+.crop-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  background: #001580;
+}
+
+.crop-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0021A5;
+  border: none;
+  cursor: grab;
 }
 
 .photo-remove {
@@ -711,6 +891,7 @@ select.form-input {
   border-radius: 50%;
   cursor: pointer;
   transition: background 0.15s;
+  z-index: 2;
 }
 
 .photo-remove:hover {

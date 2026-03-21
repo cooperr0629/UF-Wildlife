@@ -37,6 +37,10 @@ export class ProfileComponent {
     return this.sightingService.sightingsByUser(u.id);
   });
 
+  readonly myPhotos = computed(() =>
+    this.mySightings().filter(s => !!s.photoUrl)
+  );
+
   readonly stats = computed(() => {
     const sightings = this.mySightings();
     const species = new Set(sightings.map((s) => s.animalName));

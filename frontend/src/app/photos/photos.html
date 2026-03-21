@@ -22,7 +22,7 @@
 
         <div class="card-grid">
           @for (s of entry.value; track s.id) {
-            <div class="card">
+            <div class="card" (click)="selectCard(s)">
               @if (s.photoUrl) {
                 <img class="card-photo" [src]="s.photoUrl" [alt]="s.animalName" />
               } @else {
@@ -62,5 +62,88 @@
         </div>
       </section>
     }
+  </div>
+}
+
+<!-- Photo Detail Modal -->
+@if (selectedSighting(); as s) {
+  <div class="detail-overlay" (click)="closeDetail()">
+    <div class="detail-sheet" (click)="$event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="detail-header">
+        <div class="detail-title-area">
+          <span class="detail-name">{{ s.animalName }}</span>
+          <span class="detail-badge" [style.background]="color(s.category)">{{ s.category }}</span>
+        </div>
+        <button class="detail-close" (click)="closeDetail()">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Full Photo -->
+      @if (s.photoUrl) {
+        <div class="detail-photo-wrap">
+          <img class="detail-photo" [src]="s.photoUrl" [alt]="s.animalName" />
+        </div>
+      }
+
+      <!-- Meta -->
+      <div class="detail-meta">
+        @if (s.behavior) {
+          <span class="detail-chip">{{ s.behavior }}</span>
+        }
+        <span class="detail-chip">× {{ s.quantity }}</span>
+        <span class="detail-chip">{{ s.date }}</span>
+        @if (s.username) {
+          <span class="detail-chip">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {{ s.username }}
+          </span>
+        }
+      </div>
+
+      @if (s.description) {
+        <p class="detail-desc">{{ s.description }}</p>
+      }
+
+      <!-- Species Info -->
+      @if (selectedSpeciesInfo(); as info) {
+        <section class="species-section">
+          <h4 class="section-title">About {{ s.animalName }}</h4>
+          <p class="species-desc">{{ info.description }}</p>
+          <div class="species-facts">
+            <div class="fact-row">
+              <span class="fact-label">Habitat</span>
+              <span class="fact-value">{{ info.habitat }}</span>
+            </div>
+            <div class="fact-row">
+              <span class="fact-label">Diet</span>
+              <span class="fact-value">{{ info.diet }}</span>
+            </div>
+            <div class="fact-row">
+              <span class="fact-label">Activity</span>
+              <span class="fact-value">{{ info.activity }}</span>
+            </div>
+            <div class="fact-row fun-fact-row">
+              <span class="fact-label">Fun Fact</span>
+              <span class="fact-value">{{ info.funFact }}</span>
+            </div>
+          </div>
+        </section>
+      }
+
+      <!-- Heatmap -->
+      <section class="heatmap-section">
+        <h4 class="section-title">
+          {{ s.animalName }} Sightings
+          <span class="heatmap-count">{{ speciesSightings().length }}</span>
+        </h4>
+        <div id="photo-detail-map" class="detail-map"></div>
+      </section>
+
+    </div>
   </div>
 }

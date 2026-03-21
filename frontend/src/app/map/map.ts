@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { SightingService, Sighting, CATEGORY_COLORS, SPECIES_BY_CATEGORY } from '../sighting.service';
 import { AuthService } from '../auth.service';
 import { UploadService } from '../upload.service';
@@ -48,7 +49,7 @@ interface SightingForm {
 @Component({
   selector: 'app-map',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   templateUrl: './map.html',
   styleUrl: './map.css',
 })
@@ -74,11 +75,14 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   // Sighting form
   showSightingForm = signal(false);
+  loginRequired = signal(false);
   sighting = signal<SightingForm>(this.defaultSighting());
   photoPreview = signal<string | null>(null);
   photoFile = signal<File | null>(null);
   isDragging = signal(false);
   isSubmitting = signal(false);
+  photoCropY = signal(50);       // 0–100%, vertical crop position
+  photoIsPortrait = signal(false); // true when image needs vertical cropping
 
   // Sighting detail panel + comments
   selectedSighting = signal<Sighting | null>(null);
@@ -86,6 +90,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   commentText = signal('');
   isLoadingComments = signal(false);
   isSubmittingComment = signal(false);
+  confirmDeleteSighting = signal(false);
 
   categories = ['Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish', 'Insect', 'Other'];
   behaviors = ['Resting', 'Feeding', 'Moving', 'Nesting', 'Swimming', 'Flying', 'Unknown'];
@@ -336,6 +341,10 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   }
 
   openSightingForm(lat: number, lng: number, address: string) {
+    if (!this.authService.currentUser()) {
+      this.loginRequired.set(true);
+      return;
+    }
     const now = new Date();
     this.sighting.set({
       ...this.defaultSighting(),
@@ -347,6 +356,8 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     });
     this.photoPreview.set(null);
     this.photoFile.set(null);
+    this.photoCropY.set(50);
+    this.photoIsPortrait.set(false);
     this.showSightingForm.set(true);
   }
 
@@ -397,9 +408,19 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   private handleFile(file: File) {
     this.photoFile.set(file);
+    this.photoCropY.set(50);
     const reader = new FileReader();
     reader.onload = () => {
-      this.photoPreview.set(reader.result as string);
+      const dataUrl = reader.result as string;
+      this.photoPreview.set(dataUrl);
+      // Detect if portrait (needs vertical crop for banner display)
+      const img = new Image();
+      img.onload = () => {
+        // Banner ratio is ~2.5:1; portrait if image is taller than banner would be
+        const BANNER_RATIO = 2.5;
+        this.photoIsPortrait.set(img.naturalHeight / img.naturalWidth > 1 / BANNER_RATIO);
+      };
+      img.src = dataUrl;
     };
     reader.readAsDataURL(file);
   }
@@ -407,6 +428,42 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   removePhoto() {
     this.photoPreview.set(null);
     this.photoFile.set(null);
+    this.photoIsPortrait.set(false);
+    this.photoCropY.set(50);
+  }
+
+  private cropImageToBlob(file: File, cropY: number): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const BANNER_RATIO = 2.5;
+        const srcW = img.naturalWidth;
+        const srcH = img.naturalHeight;
+        const cropH = Math.round(srcW / BANNER_RATIO);
+
+        if (cropH >= srcH) {
+          // Already wide enough – no cropping needed, return original as blob
+          file.arrayBuffer().then(buf => resolve(new Blob([buf], { type: file.type })));
+          return;
+        }
+
+        const maxOffsetY = srcH - cropH;
+        const offsetY = Math.round((cropY / 100) * maxOffsetY);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = srcW;
+        canvas.height = cropH;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, offsetY, srcW, cropH, 0, 0, srcW, cropH);
+        canvas.toBlob(
+          blob => (blob ? resolve(blob) : reject(new Error('Canvas toBlob failed'))),
+          'image/jpeg',
+          0.92,
+        );
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
   }
 
   async submitSighting() {
@@ -420,10 +477,12 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     const file = this.photoFile();
     if (file) {
       try {
-        photoUrl = await this.uploadService.uploadPhoto(file);
+        const cropY = this.photoCropY();
+        const croppedBlob = await this.cropImageToBlob(file, cropY);
+        const croppedFile = new File([croppedBlob], file.name, { type: 'image/jpeg' });
+        photoUrl = await this.uploadService.uploadPhoto(croppedFile);
       } catch (err) {
         console.error('Photo upload failed:', err);
-        // Fall back to base64 preview if upload fails
         photoUrl = this.photoPreview();
       }
     }
@@ -431,6 +490,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     const newSighting: Sighting = {
       id: crypto.randomUUID(),
       userId: this.authService.currentUser()?.id || '',
+      username: this.authService.currentUser()?.username || '',
       latitude: s.latitude,
       longitude: s.longitude,
       address: s.address,
@@ -466,6 +526,27 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.selectedSighting.set(null);
     this.comments.set([]);
     this.commentText.set('');
+    this.confirmDeleteSighting.set(false);
+  }
+
+  isOwner(sighting: Sighting): boolean {
+    const user = this.authService.currentUser();
+    return !!user && user.id === sighting.userId;
+  }
+
+  requestDeleteSighting() {
+    this.confirmDeleteSighting.set(true);
+  }
+
+  cancelDeleteSighting() {
+    this.confirmDeleteSighting.set(false);
+  }
+
+  async executeDeleteSighting() {
+    const s = this.selectedSighting();
+    if (!s) return;
+    await this.sightingService.remove(s.id);
+    this.closeSightingDetail();
   }
 
   async loadComments(sightingId: string) {

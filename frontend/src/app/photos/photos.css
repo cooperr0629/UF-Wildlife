@@ -81,11 +81,13 @@
   border: 1px solid #eee;
   border-radius: 12px;
   overflow: hidden;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s, transform 0.15s;
+  cursor: pointer;
 }
 
 .card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 
 .card-photo {
@@ -174,4 +176,208 @@
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ── Detail Modal ── */
+
+.detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fadeIn 0.18s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.detail-sheet {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 680px;
+  max-height: 92vh;
+  overflow-y: auto;
+  animation: slideUp 0.22s ease;
+  padding-bottom: 32px;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(60px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 12px;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.detail-title-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.detail-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+}
+
+.detail-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 8px;
+}
+
+.detail-close {
+  background: #f3f3f3;
+  border: none;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #555;
+  flex-shrink: 0;
+}
+
+.detail-close:hover {
+  background: #e8e8e8;
+}
+
+.detail-photo-wrap {
+  width: 100%;
+  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.detail-photo {
+  max-width: 100%;
+  max-height: 70vh;
+  width: auto;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 20px 0;
+}
+
+.detail-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f3f4f6;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #444;
+  font-weight: 500;
+}
+
+.detail-desc {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.5;
+  padding: 10px 20px 0;
+  margin: 0;
+}
+
+/* ── Species Info Section ── */
+
+.species-section,
+.heatmap-section {
+  padding: 20px 20px 0;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.heatmap-count {
+  background: #0021A5;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.species-desc {
+  font-size: 14px;
+  color: #444;
+  line-height: 1.55;
+  margin: 0 0 14px;
+}
+
+.species-facts {
+  background: #f7f8fc;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.fact-row {
+  display: flex;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #eef0f5;
+  font-size: 13px;
+}
+
+.fact-row:last-child {
+  border-bottom: none;
+}
+
+.fact-label {
+  font-weight: 600;
+  color: #0021A5;
+  min-width: 72px;
+  flex-shrink: 0;
+}
+
+.fact-value {
+  color: #444;
+  line-height: 1.45;
+}
+
+.fun-fact-row {
+  background: #eef2ff;
+}
+
+/* ── Heatmap ── */
+
+.detail-map {
+  height: 240px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 4px;
 }

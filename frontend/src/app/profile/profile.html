@@ -40,6 +40,24 @@
       </div>
     </section>
 
+    <!-- My Photos -->
+    @if (myPhotos().length > 0) {
+      <section class="photos-section">
+        <h3>My Photos <span class="photo-count">{{ myPhotos().length }}</span></h3>
+        <div class="photos-grid">
+          @for (s of myPhotos(); track s.id) {
+            <div class="photo-card">
+              <img [src]="s.photoUrl!" [alt]="s.animalName" class="photo-card-img" />
+              <div class="photo-card-label">
+                <span class="photo-card-name">{{ s.animalName }}</span>
+                <span class="photo-card-date">{{ s.date }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
     <!-- My Sightings -->
     <section class="sightings-section">
       <h3>My Sightings</h3>

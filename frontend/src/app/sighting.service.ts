@@ -3,6 +3,7 @@ import { Injectable, signal, computed } from '@angular/core';
 export interface Sighting {
   id: string;
   userId: string;
+  username: string;
   latitude: number;
   longitude: number;
   address: string;
@@ -393,6 +394,7 @@ export class SightingService {
       const sightings: Sighting[] = data.map((row) => ({
         id: String(row.id),
         userId: String(row.user_id || ''),
+        username: row.username || '',
         latitude: row.latitude,
         longitude: row.longitude,
         address: row.address || '',
@@ -429,6 +431,7 @@ export class SightingService {
           date: sighting.date,
           time: sighting.time,
           userId: sighting.userId,
+          username: sighting.username,
         }),
       });
       if (!res.ok) throw new Error('Failed to create sighting');
