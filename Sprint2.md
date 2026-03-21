@@ -213,15 +213,7 @@ Registration and login now require a `@ufl.edu` email address. Any other domain 
 
 Applies to: `POST /api/signup` and `POST /api/login`
 
-#### 2. Category Filter on Sightings
-`GET /api/sightings` now accepts an optional `category` query parameter to return only sightings of a specific animal category.
-
-Example: `GET /api/sightings?category=Bird`
-
-#### 3. Statistics Endpoint
-New endpoint `GET /api/stats` returns a summary of the database — total sightings, total users, and a breakdown of sightings by animal category.
-
-#### 4. Comments on Sightings
+#### 2. Comments on Sightings
 Users can now leave comments on individual wildlife sightings. Three new endpoints were added, using the existing `messages` table (extended with a `sighting_id` column).
 
 - `GET /api/sightings/{id}/messages` — fetch all comments for a sighting
@@ -294,12 +286,6 @@ Log in with an existing account.
 
 #### `GET /api/sightings`
 Retrieve all wildlife sighting records, ordered by most recent first.
-
-**Optional query parameter:** `category` — filter by animal category (e.g., `Bird`, `Mammal`, `Reptile`).
-
-**Examples:**
-- `GET /api/sightings` — all sightings
-- `GET /api/sightings?category=Bird` — only bird sightings
 
 **Responses:**
 
@@ -392,33 +378,6 @@ Delete a sighting by its integer ID.
 
 ---
 
-#### `GET /api/stats`
-Return a summary of database statistics.
-
-**Responses:**
-
-| Status | Meaning |
-|--------|---------|
-| 200 OK | Returns counts object. |
-| 500 Internal Server Error | Database query failed. |
-
-**Response:**
-```json
-{
-  "total_sightings": 42,
-  "total_users": 8,
-  "by_category": {
-    "Bird": 15,
-    "Mammal": 10,
-    "Reptile": 8,
-    "Insect": 5,
-    "Amphibian": 4
-  }
-}
-```
-
----
-
 #### `GET /api/sightings/{id}/messages`
 Fetch all comments for a specific sighting, ordered oldest first.
 
@@ -491,7 +450,7 @@ cd backend
 go test ./... -v
 ```
 
-**Total: 16 unit tests, all passing.**
+**Total: 15 unit tests, all passing.**
 
 | Test | Function Tested |
 |------|----------------|
@@ -505,7 +464,6 @@ go test ./... -v
 | `TestHandleLogin_MethodNotAllowed` | `handleLogin()` — rejects non-POST requests with 405 |
 | `TestHandleLogin_MissingFields` | `handleLogin()` — returns 400 when fields are empty |
 | `TestHandleLogin_InvalidEmailDomain` | `handleLogin()` — rejects non-@ufl.edu emails with 400 |
-| `TestHandleStats_MethodNotAllowed` | `handleStats()` — rejects non-GET requests with 405 |
 | `TestHandleGetComments_MethodNotAllowed` | `handleGetComments()` — rejects non-GET requests with 405 |
 | `TestHandleCreateComment_MissingContent` | `handleCreateComment()` — returns 400 when content is empty |
 | `TestHandleDeleteComment_MethodNotAllowed` | `handleDeleteComment()` — rejects non-DELETE requests with 405 |
