@@ -69,6 +69,16 @@ func createTables() {
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
 
+	sightingLikesTable := `
+	CREATE TABLE IF NOT EXISTS sighting_likes (
+		user_id INTEGER NOT NULL,
+		sighting_id INTEGER NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (user_id, sighting_id),
+		FOREIGN KEY (user_id) REFERENCES users(id),
+		FOREIGN KEY (sighting_id) REFERENCES animals(id) ON DELETE CASCADE
+	);`
+
 	_, err := DB.Exec(usersTable)
 	if err != nil {
 		log.Fatal("Error creating users table:", err)
@@ -82,6 +92,11 @@ func createTables() {
 	_, err = DB.Exec(messagesTable)
 	if err != nil {
 		log.Fatal("Error creating messages table:", err)
+	}
+
+	_, err = DB.Exec(sightingLikesTable)
+	if err != nil {
+		log.Fatal("Error creating sighting_likes table:", err)
 	}
 
 	log.Println("Database tables created successfully")

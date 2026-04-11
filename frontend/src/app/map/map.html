@@ -47,6 +47,149 @@
 
 <div id="map"></div>
 
+<!-- Category filter chips -->
+<div class="category-filter-bar">
+  <button
+    class="cat-chip"
+    [class.selected]="activeCategory() === ''"
+    (click)="selectCategory('')"
+  >
+    All
+  </button>
+  @for (cat of categories; track cat) {
+    <button
+      class="cat-chip"
+      [class.selected]="activeCategory() === cat"
+      [style.--chip-color]="categoryColor(cat)"
+      (click)="selectCategory(cat)"
+    >
+      <span class="cat-chip-dot"></span>
+      {{ cat }}
+    </button>
+  }
+  @if (isFilterLoading()) {
+    <span class="cat-filter-loading">…</span>
+  }
+</div>
+
+<!-- Stats toggle button -->
+<button class="stats-toggle" (click)="toggleStatsPanel()" [class.active]="showStatsPanel()">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="12" y1="20" x2="12" y2="10"/>
+    <line x1="18" y1="20" x2="18" y2="4"/>
+    <line x1="6" y1="20" x2="6" y2="14"/>
+  </svg>
+  Stats
+</button>
+
+<!-- Stats panel -->
+@if (showStatsPanel()) {
+  <div class="stats-panel">
+    <div class="stats-header">
+      <h4>Wildlife Statistics</h4>
+      <button class="stats-close" (click)="toggleStatsPanel()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    @if (isLoadingStats()) {
+      <p class="stats-empty">Loading...</p>
+    } @else if (stats(); as s) {
+      <div class="stats-totals">
+        <div class="stats-total-card">
+          <div class="stats-total-num">{{ s.totalSightings }}</div>
+          <div class="stats-total-label">Sightings</div>
+        </div>
+        <div class="stats-total-card">
+          <div class="stats-total-num">{{ s.totalUsers }}</div>
+          <div class="stats-total-label">Users</div>
+        </div>
+      </div>
+      <div class="stats-section-title">By Category</div>
+      <div class="stats-bars">
+        @for (e of statsCategoryEntries(); track e.name) {
+          <div class="stats-bar-row">
+            <div class="stats-bar-label">
+              <span class="stats-bar-dot" [style.background]="e.color"></span>
+              {{ e.name }}
+            </div>
+            <div class="stats-bar-track">
+              <div class="stats-bar-fill" [style.width.%]="e.pct" [style.background]="e.color"></div>
+            </div>
+            <div class="stats-bar-count">{{ e.count }}</div>
+          </div>
+        }
+      </div>
+      <button class="stats-refresh" (click)="loadStats()">Refresh</button>
+    } @else {
+      <p class="stats-empty">Failed to load.</p>
+    }
+  </div>
+}
+
+<!-- Nearby toggle button -->
+<button class="nearby-toggle" (click)="toggleNearbyPanel()" [class.active]="showNearbyPanel()">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="9"/>
+    <circle cx="12" cy="12" r="3" fill="currentColor"/>
+  </svg>
+  Nearby
+</button>
+
+<!-- Nearby panel -->
+@if (showNearbyPanel()) {
+  <div class="nearby-panel">
+    <div class="nearby-header">
+      <h4>Nearby Sightings</h4>
+      <button class="nearby-close" (click)="toggleNearbyPanel()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="nearby-controls">
+      <label class="nearby-label">Radius</label>
+      <select
+        class="nearby-radius-select"
+        [ngModel]="nearbyRadius()"
+        (ngModelChange)="setNearbyRadius(+$event); findNearby()"
+      >
+        <option [ngValue]="500">500 m</option>
+        <option [ngValue]="1000">1 km</option>
+        <option [ngValue]="2000">2 km</option>
+        <option [ngValue]="5000">5 km</option>
+        <option [ngValue]="10000">10 km</option>
+      </select>
+      <button class="nearby-refresh" (click)="findNearby()" [disabled]="isLoadingNearby()">
+        @if (isLoadingNearby()) { ... } @else { Refresh }
+      </button>
+    </div>
+    @if (nearbyError()) {
+      <p class="nearby-error">{{ nearbyError() }}</p>
+    } @else if (nearbyOrigin()?.source === 'gps') {
+      <p class="nearby-source">Centered on your current location.</p>
+    }
+    @if (isLoadingNearby()) {
+      <p class="nearby-empty">Locating...</p>
+    } @else if (nearbyResults().length === 0) {
+      <p class="nearby-empty">No sightings within {{ nearbyRadius() }} m.</p>
+    } @else {
+      <div class="nearby-list">
+        @for (s of nearbyResults(); track s.id) {
+          <button class="nearby-item" (click)="flyToNearby(s)">
+            <span class="nearby-dot" [style.background]="categoryColor(s.category)"></span>
+            <div class="nearby-info">
+              <div class="nearby-name">{{ s.animalName }}</div>
+              <div class="nearby-meta">{{ s.category }} · {{ formatDistance(s.distanceMeters) }}</div>
+            </div>
+          </button>
+        }
+      </div>
+    }
+  </div>
+}
+
 <!-- Heatmap toggle button -->
 <button class="heatmap-toggle" (click)="toggleHeatmap()" [class.active]="showHeatmap()">
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
@@ -118,6 +261,22 @@
     @if (selectedSighting()!.description) {
       <p class="detail-desc">{{ selectedSighting()!.description }}</p>
     }
+
+    <!-- Like button -->
+    <div class="like-row">
+      <button
+        class="like-btn"
+        [class.liked]="likedByMe()"
+        (click)="toggleLike()"
+        [disabled]="isTogglingLike()"
+        [title]="likedByMe() ? 'Unlike' : 'Like'"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" [attr.fill]="likedByMe() ? '#E53935' : 'none'" stroke="#E53935" stroke-width="2">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+        <span class="like-count">{{ likeCount() }}</span>
+      </button>
+    </div>
 
     <!-- Comments -->
     <div class="comments-section">

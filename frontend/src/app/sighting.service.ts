@@ -15,6 +15,8 @@ export interface Sighting {
   date: string;
   time: string;
   photoUrl: string | null;
+  likeCount?: number;
+  distanceMeters?: number;
 }
 
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -385,9 +387,10 @@ export class SightingService {
     return map;
   });
 
-  async loadAll(): Promise<void> {
+  async loadAll(category?: string): Promise<void> {
     try {
-      const res = await fetch(API_BASE);
+      const url = category ? `${API_BASE}?category=${encodeURIComponent(category)}` : API_BASE;
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to load sightings');
       const data: any[] = await res.json();
       this._loaded = true;
@@ -406,6 +409,7 @@ export class SightingService {
         date: row.date || '',
         time: row.time || '',
         photoUrl: row.image_url || null,
+        likeCount: row.like_count || 0,
       }));
       this._sightings.set(sightings);
     } catch (err) {
@@ -492,5 +496,70 @@ export class SightingService {
 
   sightingsByUser(userId: string): Sighting[] {
     return this._sightings().filter((s) => s.userId === userId);
+  }
+
+  async getLikes(sightingId: string, userId?: string): Promise<{ count: number; likedByMe: boolean }> {
+    const url = userId
+      ? `${API_BASE}/${sightingId}/likes?user_id=${encodeURIComponent(userId)}`
+      : `${API_BASE}/${sightingId}/likes`;
+    const res = await fetch(url);
+    if (!res.ok) return { count: 0, likedByMe: false };
+    const data = await res.json();
+    return { count: data.count || 0, likedByMe: !!data.liked_by_me };
+  }
+
+  async toggleLike(sightingId: string, userId: string): Promise<{ liked: boolean; count: number }> {
+    const res = await fetch(`${API_BASE}/${sightingId}/like`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: parseInt(userId, 10) }),
+    });
+    if (!res.ok) throw new Error('Failed to toggle like');
+    const data = await res.json();
+    // Sync local cached like_count so list views update immediately
+    this._sightings.update((list) =>
+      list.map((s) => (s.id === sightingId ? { ...s, likeCount: data.count } : s))
+    );
+    return { liked: !!data.liked, count: data.count || 0 };
+  }
+
+  async getStats(): Promise<{ totalSightings: number; totalUsers: number; byCategory: Record<string, number> }> {
+    const res = await fetch('http://localhost:8080/api/stats');
+    if (!res.ok) throw new Error('Failed to load stats');
+    const data = await res.json();
+    return {
+      totalSightings: data.total_sightings || 0,
+      totalUsers: data.total_users || 0,
+      byCategory: data.by_category || {},
+    };
+  }
+
+  async getNearby(lat: number, lng: number, radius: number): Promise<Sighting[]> {
+    const params = new URLSearchParams({
+      lat: String(lat),
+      lng: String(lng),
+      radius: String(radius),
+    });
+    const res = await fetch(`${API_BASE}/nearby?${params}`);
+    if (!res.ok) return [];
+    const data: any[] = await res.json();
+    return data.map((row) => ({
+      id: String(row.id),
+      userId: String(row.user_id || ''),
+      username: row.username || '',
+      latitude: row.latitude,
+      longitude: row.longitude,
+      address: row.address || '',
+      animalName: row.species,
+      category: row.category || 'Other',
+      quantity: row.quantity || 1,
+      behavior: row.behavior || '',
+      description: row.description || '',
+      date: row.date || '',
+      time: row.time || '',
+      photoUrl: row.image_url || null,
+      likeCount: row.like_count || 0,
+      distanceMeters: row.distance_meters || 0,
+    }));
   }
 }

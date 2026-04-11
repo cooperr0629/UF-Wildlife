@@ -92,6 +92,30 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   isSubmittingComment = signal(false);
   confirmDeleteSighting = signal(false);
 
+  // Likes
+  likeCount = signal(0);
+  likedByMe = signal(false);
+  isTogglingLike = signal(false);
+
+  // Category filter
+  activeCategory = signal<string>('');
+  isFilterLoading = signal(false);
+
+  // Stats
+  showStatsPanel = signal(false);
+  isLoadingStats = signal(false);
+  stats = signal<{ totalSightings: number; totalUsers: number; byCategory: Record<string, number> } | null>(null);
+
+  // Nearby
+  showNearbyPanel = signal(false);
+  nearbyRadius = signal(1000);
+  nearbyResults = signal<Sighting[]>([]);
+  isLoadingNearby = signal(false);
+  nearbyError = signal('');
+  nearbyOrigin = signal<{ lat: number; lng: number; source: 'gps' | 'map' } | null>(null);
+  private nearbyCircle: L.Circle | null = null;
+  private nearbyOriginMarker: L.CircleMarker | null = null;
+
   categories = ['Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish', 'Insect', 'Other'];
   behaviors = ['Resting', 'Feeding', 'Moving', 'Nesting', 'Swimming', 'Flying', 'Unknown'];
 
@@ -519,7 +543,10 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   openSightingDetail(s: Sighting) {
     this.selectedSighting.set(s);
     this.commentText.set('');
+    this.likeCount.set(s.likeCount || 0);
+    this.likedByMe.set(false);
     this.loadComments(s.id);
+    this.loadLikes(s.id);
   }
 
   closeSightingDetail() {
@@ -527,6 +554,202 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.comments.set([]);
     this.commentText.set('');
     this.confirmDeleteSighting.set(false);
+    this.likeCount.set(0);
+    this.likedByMe.set(false);
+  }
+
+  async loadLikes(sightingId: string) {
+    const userId = this.authService.currentUser()?.id;
+    const { count, likedByMe } = await this.sightingService.getLikes(sightingId, userId);
+    this.likeCount.set(count);
+    this.likedByMe.set(likedByMe);
+  }
+
+  async toggleLike() {
+    const s = this.selectedSighting();
+    const user = this.authService.currentUser();
+    if (!s || !user) {
+      this.loginRequired.set(true);
+      return;
+    }
+    if (this.isTogglingLike()) return;
+    this.isTogglingLike.set(true);
+    try {
+      const { liked, count } = await this.sightingService.toggleLike(s.id, user.id);
+      this.likedByMe.set(liked);
+      this.likeCount.set(count);
+    } catch (err) {
+      console.error('toggle like failed', err);
+    } finally {
+      this.isTogglingLike.set(false);
+    }
+  }
+
+  // ---- Nearby ----
+  toggleNearbyPanel() {
+    const next = !this.showNearbyPanel();
+    this.showNearbyPanel.set(next);
+    if (next) {
+      this.findNearby();
+    } else {
+      this.clearNearbyCircle();
+      this.nearbyResults.set([]);
+    }
+  }
+
+  setNearbyRadius(value: number) {
+    this.nearbyRadius.set(value);
+  }
+
+  private getDeviceLocation(): Promise<{ lat: number; lng: number }> {
+    return new Promise((resolve, reject) => {
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        reject(new Error('Geolocation not supported'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => reject(err),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    });
+  }
+
+  async findNearby() {
+    if (!this.map || !this.leaflet) return;
+    this.isLoadingNearby.set(true);
+    this.nearbyError.set('');
+
+    let lat: number;
+    let lng: number;
+    let source: 'gps' | 'map' = 'gps';
+
+    try {
+      const loc = await this.getDeviceLocation();
+      lat = loc.lat;
+      lng = loc.lng;
+    } catch (err: any) {
+      // Fall back to map center if user denies / no GPS
+      const code = err?.code;
+      if (code === 1) this.nearbyError.set('Location permission denied — using map center.');
+      else if (code === 2) this.nearbyError.set('Location unavailable — using map center.');
+      else if (code === 3) this.nearbyError.set('Location timed out — using map center.');
+      else this.nearbyError.set('Geolocation failed — using map center.');
+      const center = this.map.getCenter();
+      lat = center.lat;
+      lng = center.lng;
+      source = 'map';
+    }
+
+    this.nearbyOrigin.set({ lat, lng, source });
+
+    try {
+      const results = await this.sightingService.getNearby(lat, lng, this.nearbyRadius());
+      this.nearbyResults.set(results);
+      this.drawNearbyCircle(lat, lng, this.nearbyRadius());
+      // Pan map to the search origin so the user can see the radius
+      this.map.setView([lat, lng], this.map.getZoom());
+    } catch (err) {
+      console.error('nearby fetch failed', err);
+      this.nearbyResults.set([]);
+    } finally {
+      this.isLoadingNearby.set(false);
+    }
+  }
+
+  private drawNearbyCircle(lat: number, lng: number, radius: number) {
+    if (!this.map || !this.leaflet) return;
+    this.clearNearbyCircle();
+    this.nearbyCircle = this.leaflet
+      .circle([lat, lng], {
+        radius,
+        color: '#0021A5',
+        weight: 2,
+        fillColor: '#0021A5',
+        fillOpacity: 0.08,
+      })
+      .addTo(this.map);
+    // Small dot showing the origin point
+    this.nearbyOriginMarker = this.leaflet
+      .circleMarker([lat, lng], {
+        radius: 6,
+        color: '#fff',
+        weight: 2,
+        fillColor: '#0021A5',
+        fillOpacity: 1,
+      })
+      .addTo(this.map);
+  }
+
+  private clearNearbyCircle() {
+    if (this.nearbyCircle) {
+      this.nearbyCircle.remove();
+      this.nearbyCircle = null;
+    }
+    if (this.nearbyOriginMarker) {
+      this.nearbyOriginMarker.remove();
+      this.nearbyOriginMarker = null;
+    }
+  }
+
+  flyToNearby(s: Sighting) {
+    if (!this.map) return;
+    this.map.setView([s.latitude, s.longitude], 18);
+    this.openSightingDetail(s);
+  }
+
+  formatDistance(meters: number | undefined): string {
+    if (!meters && meters !== 0) return '';
+    if (meters < 1000) return `${Math.round(meters)} m`;
+    return `${(meters / 1000).toFixed(2)} km`;
+  }
+
+  // ---- Category filter ----
+  async selectCategory(cat: string) {
+    if (this.activeCategory() === cat) return;
+    this.activeCategory.set(cat);
+    this.isFilterLoading.set(true);
+    try {
+      await this.sightingService.loadAll(cat || undefined);
+    } finally {
+      this.isFilterLoading.set(false);
+    }
+  }
+
+  // ---- Stats ----
+  async toggleStatsPanel() {
+    const next = !this.showStatsPanel();
+    this.showStatsPanel.set(next);
+    if (next && !this.stats()) {
+      await this.loadStats();
+    }
+  }
+
+  async loadStats() {
+    this.isLoadingStats.set(true);
+    try {
+      const s = await this.sightingService.getStats();
+      this.stats.set(s);
+    } catch (err) {
+      console.error('stats fetch failed', err);
+      this.stats.set(null);
+    } finally {
+      this.isLoadingStats.set(false);
+    }
+  }
+
+  statsCategoryEntries(): { name: string; count: number; color: string; pct: number }[] {
+    const s = this.stats();
+    if (!s) return [];
+    const max = Math.max(...Object.values(s.byCategory), 1);
+    return Object.entries(s.byCategory)
+      .map(([name, count]) => ({
+        name,
+        count,
+        color: CATEGORY_COLORS[name] || CATEGORY_COLORS['Other'],
+        pct: (count / max) * 100,
+      }))
+      .sort((a, b) => b.count - a.count);
   }
 
   isOwner(sighting: Sighting): boolean {
@@ -635,6 +858,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy() {
     this.clearHeatmap();
+    this.clearNearbyCircle();
     this.map?.remove();
     _hmrMapInstance = null;
   }

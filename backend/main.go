@@ -214,9 +214,12 @@ func handleGetSightings(w http.ResponseWriter, r *http.Request) {
 			       COALESCE(a.date,''), COALESCE(a.time,''),
 			       COALESCE(a.user_id,0),
 			       COALESCE(NULLIF(a.username,''), u.username, ''),
-			       a.created_at
+			       a.created_at,
+			       COALESCE(lc.cnt, 0) AS like_count
 			FROM animals a
 			LEFT JOIN users u ON a.user_id = u.id
+			LEFT JOIN (SELECT sighting_id, COUNT(*) AS cnt FROM sighting_likes GROUP BY sighting_id) lc
+			       ON lc.sighting_id = a.id
 			WHERE a.category = $1 ORDER BY a.created_at DESC`, category)
 	} else {
 		rows, err = database.DB.Query(`
@@ -226,9 +229,12 @@ func handleGetSightings(w http.ResponseWriter, r *http.Request) {
 			       COALESCE(a.date,''), COALESCE(a.time,''),
 			       COALESCE(a.user_id,0),
 			       COALESCE(NULLIF(a.username,''), u.username, ''),
-			       a.created_at
+			       a.created_at,
+			       COALESCE(lc.cnt, 0) AS like_count
 			FROM animals a
 			LEFT JOIN users u ON a.user_id = u.id
+			LEFT JOIN (SELECT sighting_id, COUNT(*) AS cnt FROM sighting_likes GROUP BY sighting_id) lc
+			       ON lc.sighting_id = a.id
 			ORDER BY a.created_at DESC`)
 	}
 	if err != nil {
@@ -242,7 +248,7 @@ func handleGetSightings(w http.ResponseWriter, r *http.Request) {
 		var a models.Animals
 		if err := rows.Scan(&a.ID, &a.Species, &a.ImageURL, &a.Latitude, &a.Longitude,
 			&a.Address, &a.Category, &a.Quantity, &a.Behavior, &a.Description,
-			&a.Date, &a.Time, &a.UserID, &a.Username, &a.CreateTime); err != nil {
+			&a.Date, &a.Time, &a.UserID, &a.Username, &a.CreateTime, &a.LikeCount); err != nil {
 			continue
 		}
 		sightings = append(sightings, a)
@@ -507,8 +513,213 @@ func handleDeleteComment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
+// ---------- Likes ----------
+
+// parseSightingIDFromLikePath extracts {id} from /api/sightings/{id}/like(s)
+func parseSightingIDFromLikePath(path string) (int, error) {
+	trimmed := strings.TrimPrefix(path, "/api/sightings/")
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 2 {
+		return 0, strconv.ErrSyntax
+	}
+	return strconv.Atoi(parts[0])
+}
+
+func handleToggleLike(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	sightingID, err := parseSightingIDFromLikePath(r.URL.Path)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid sighting ID"})
+		return
+	}
+
+	var req struct {
+		UserID int `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+		return
+	}
+	if req.UserID <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "user_id is required"})
+		return
+	}
+
+	// Check existing like
+	var exists int
+	err = database.DB.QueryRow(
+		"SELECT 1 FROM sighting_likes WHERE user_id=$1 AND sighting_id=$2",
+		req.UserID, sightingID,
+	).Scan(&exists)
+
+	liked := false
+	if err == sql.ErrNoRows {
+		// Insert
+		if _, err := database.DB.Exec(
+			"INSERT INTO sighting_likes (user_id, sighting_id) VALUES ($1, $2)",
+			req.UserID, sightingID,
+		); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to like sighting"})
+			return
+		}
+		liked = true
+	} else if err == nil {
+		// Delete
+		if _, err := database.DB.Exec(
+			"DELETE FROM sighting_likes WHERE user_id=$1 AND sighting_id=$2",
+			req.UserID, sightingID,
+		); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to unlike sighting"})
+			return
+		}
+		liked = false
+	} else {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Database error"})
+		return
+	}
+
+	var count int
+	if err := database.DB.QueryRow(
+		"SELECT COUNT(*) FROM sighting_likes WHERE sighting_id=$1", sightingID,
+	).Scan(&count); err != nil {
+		count = 0
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"liked": liked,
+		"count": count,
+	})
+}
+
+func handleGetLikes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	sightingID, err := parseSightingIDFromLikePath(r.URL.Path)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid sighting ID"})
+		return
+	}
+
+	var count int
+	if err := database.DB.QueryRow(
+		"SELECT COUNT(*) FROM sighting_likes WHERE sighting_id=$1", sightingID,
+	).Scan(&count); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to query likes"})
+		return
+	}
+
+	likedByMe := false
+	if uidStr := r.URL.Query().Get("user_id"); uidStr != "" {
+		if uid, err := strconv.Atoi(uidStr); err == nil && uid > 0 {
+			var one int
+			err := database.DB.QueryRow(
+				"SELECT 1 FROM sighting_likes WHERE user_id=$1 AND sighting_id=$2",
+				uid, sightingID,
+			).Scan(&one)
+			likedByMe = (err == nil)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"count":        count,
+		"liked_by_me":  likedByMe,
+	})
+}
+
+// ---------- Nearby search ----------
+
+func handleGetNearbySightings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	latStr := r.URL.Query().Get("lat")
+	lngStr := r.URL.Query().Get("lng")
+	if latStr == "" || lngStr == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "lat and lng query parameters are required"})
+		return
+	}
+
+	lat, err := strconv.ParseFloat(latStr, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid lat value"})
+		return
+	}
+	lng, err := strconv.ParseFloat(lngStr, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid lng value"})
+		return
+	}
+
+	radius := 1000.0
+	if radiusStr := r.URL.Query().Get("radius"); radiusStr != "" {
+		if r2, err := strconv.ParseFloat(radiusStr, 64); err == nil && r2 > 0 {
+			radius = r2
+		}
+	}
+	if radius > 10000 {
+		radius = 10000
+	}
+
+	rows, err := database.DB.Query(`
+		SELECT a.id, a.species, COALESCE(a.image_url,''), a.latitude, a.longitude,
+		       COALESCE(a.address,''), COALESCE(a.category,''), COALESCE(a.quantity,1),
+		       COALESCE(a.behavior,''), COALESCE(a.description,''),
+		       COALESCE(a.date,''), COALESCE(a.time,''),
+		       COALESCE(a.user_id,0),
+		       COALESCE(NULLIF(a.username,''), u.username, ''),
+		       a.created_at,
+		       COALESCE(lc.cnt, 0) AS like_count,
+		       (6371000 * acos(
+		           GREATEST(-1, LEAST(1,
+		               cos(radians($1)) * cos(radians(a.latitude)) *
+		               cos(radians(a.longitude) - radians($2)) +
+		               sin(radians($1)) * sin(radians(a.latitude))
+		           ))
+		       )) AS distance_meters
+		FROM animals a
+		LEFT JOIN users u ON a.user_id = u.id
+		LEFT JOIN (SELECT sighting_id, COUNT(*) AS cnt FROM sighting_likes GROUP BY sighting_id) lc
+		       ON lc.sighting_id = a.id
+		WHERE (6371000 * acos(
+		           GREATEST(-1, LEAST(1,
+		               cos(radians($1)) * cos(radians(a.latitude)) *
+		               cos(radians(a.longitude) - radians($2)) +
+		               sin(radians($1)) * sin(radians(a.latitude))
+		           ))
+		       )) <= $3
+		ORDER BY distance_meters ASC`, lat, lng, radius)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to query nearby sightings"})
+		return
+	}
+	defer rows.Close()
+
+	sightings := []models.Animals{}
+	for rows.Next() {
+		var a models.Animals
+		if err := rows.Scan(&a.ID, &a.Species, &a.ImageURL, &a.Latitude, &a.Longitude,
+			&a.Address, &a.Category, &a.Quantity, &a.Behavior, &a.Description,
+			&a.Date, &a.Time, &a.UserID, &a.Username, &a.CreateTime, &a.LikeCount, &a.DistanceMeters); err != nil {
+			continue
+		}
+		sightings = append(sightings, a)
+	}
+
+	writeJSON(w, http.StatusOK, sightings)
+}
+
 func handleSightings(w http.ResponseWriter, r *http.Request) {
-	// Route /api/sightings, /api/sightings/{id}, /api/sightings/{id}/messages
+	// Route /api/sightings, /api/sightings/nearby, /api/sightings/{id},
+	// /api/sightings/{id}/messages, /api/sightings/{id}/like(s)
 	path := strings.TrimPrefix(r.URL.Path, "/api/sightings")
 	path = strings.TrimPrefix(path, "/")
 
@@ -525,18 +736,33 @@ func handleSightings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if path ends with /messages: {id}/messages
-	parts := strings.SplitN(path, "/", 2)
-	if len(parts) == 2 && parts[1] == "messages" {
-		switch r.Method {
-		case http.MethodGet:
-			handleGetComments(w, r)
-		case http.MethodPost:
-			handleCreateComment(w, r)
-		default:
-			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
-		}
+	// /api/sightings/nearby
+	if path == "nearby" {
+		handleGetNearbySightings(w, r)
 		return
+	}
+
+	// Check sub-paths: {id}/messages, {id}/like, {id}/likes
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) == 2 {
+		switch parts[1] {
+		case "messages":
+			switch r.Method {
+			case http.MethodGet:
+				handleGetComments(w, r)
+			case http.MethodPost:
+				handleCreateComment(w, r)
+			default:
+				writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+			}
+			return
+		case "like":
+			handleToggleLike(w, r)
+			return
+		case "likes":
+			handleGetLikes(w, r)
+			return
+		}
 	}
 
 	// Individual resource routes: /api/sightings/{id}

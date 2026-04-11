@@ -195,6 +195,151 @@ func TestHandleDeleteComment_MethodNotAllowed(t *testing.T) {
 	}
 }
 
+// ---------- handleToggleLike ----------
+
+func TestHandleToggleLike_MethodNotAllowed(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/sightings/1/like", nil)
+	w := httptest.NewRecorder()
+	handleToggleLike(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleToggleLike_InvalidSightingID(t *testing.T) {
+	body := `{"user_id":1}`
+	req := httptest.NewRequest(http.MethodPost, "/api/sightings/abc/like", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handleToggleLike(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-numeric id, got %d", w.Code)
+	}
+}
+
+func TestHandleToggleLike_InvalidJSON(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/sightings/1/like", strings.NewReader("not-json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handleToggleLike(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid JSON, got %d", w.Code)
+	}
+}
+
+func TestHandleToggleLike_MissingUserID(t *testing.T) {
+	body := `{"user_id":0}`
+	req := httptest.NewRequest(http.MethodPost, "/api/sightings/1/like", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handleToggleLike(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 when user_id missing, got %d", w.Code)
+	}
+	var resp map[string]string
+	json.NewDecoder(w.Body).Decode(&resp)
+	if !strings.Contains(resp["error"], "user_id") {
+		t.Errorf("expected user_id error message, got: %s", resp["error"])
+	}
+}
+
+// ---------- handleGetLikes ----------
+
+func TestHandleGetLikes_MethodNotAllowed(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/sightings/1/likes", nil)
+	w := httptest.NewRecorder()
+	handleGetLikes(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleGetLikes_InvalidSightingID(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/sightings/abc/likes", nil)
+	w := httptest.NewRecorder()
+	handleGetLikes(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-numeric id, got %d", w.Code)
+	}
+}
+
+// ---------- parseSightingIDFromLikePath ----------
+
+func TestParseSightingIDFromLikePath_Valid(t *testing.T) {
+	id, err := parseSightingIDFromLikePath("/api/sightings/42/like")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if id != 42 {
+		t.Errorf("expected id 42, got %d", id)
+	}
+}
+
+func TestParseSightingIDFromLikePath_NoSubpath(t *testing.T) {
+	_, err := parseSightingIDFromLikePath("/api/sightings/42")
+	if err == nil {
+		t.Error("expected error for path without subpath")
+	}
+}
+
+// ---------- handleGetNearbySightings ----------
+
+func TestHandleGetNearby_MethodNotAllowed(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/sightings/nearby", nil)
+	w := httptest.NewRecorder()
+	handleGetNearbySightings(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleGetNearby_MissingLat(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/sightings/nearby?lng=-82.3549", nil)
+	w := httptest.NewRecorder()
+	handleGetNearbySightings(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 when lat missing, got %d", w.Code)
+	}
+}
+
+func TestHandleGetNearby_MissingLng(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/sightings/nearby?lat=29.6436", nil)
+	w := httptest.NewRecorder()
+	handleGetNearbySightings(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 when lng missing, got %d", w.Code)
+	}
+}
+
+func TestHandleGetNearby_InvalidLat(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/sightings/nearby?lat=abc&lng=-82.3549", nil)
+	w := httptest.NewRecorder()
+	handleGetNearbySightings(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-numeric lat, got %d", w.Code)
+	}
+}
+
+func TestHandleGetNearby_InvalidLng(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/sightings/nearby?lat=29.6436&lng=xyz", nil)
+	w := httptest.NewRecorder()
+	handleGetNearbySightings(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-numeric lng, got %d", w.Code)
+	}
+}
+
+// ---------- handleGetSightings (category filter) ----------
+
+func TestHandleGetSightings_MethodNotAllowed(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPatch, "/api/sightings", nil)
+	w := httptest.NewRecorder()
+	handleGetSightings(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
 // ---------- writeJSON ----------
 
 func TestWriteJSON_SetsContentType(t *testing.T) {

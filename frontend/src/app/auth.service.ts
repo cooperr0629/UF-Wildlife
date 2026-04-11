@@ -25,9 +25,24 @@ const API_BASE = 'http://localhost:8080/api';
 export class AuthService {
   private router = inject(Router);
 
-  private _currentUser = signal<User | null>(null);
+  private _currentUser = signal<User | null>(this.restoreUser());
   readonly currentUser = this._currentUser.asReadonly();
   readonly isLoggedIn = computed(() => this._currentUser() !== null);
+
+  private restoreUser(): User | null {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as User;
+    } catch {
+      return null;
+    }
+  }
+
+  private persistUser(user: User) {
+    localStorage.setItem('user', JSON.stringify(user));
+  }
 
   async login(email: string, password: string): Promise<void> {
     const res = await fetch(`${API_BASE}/login`, {
@@ -44,14 +59,16 @@ export class AuthService {
     const data: AuthResponse = await res.json();
     localStorage.setItem('token', data.token);
 
-    this._currentUser.set({
+    const user: User = {
       id: String(data.user.id),
       username: data.user.username,
       email: data.user.email,
       role: 'Student',
       joinDate: new Date().toISOString().split('T')[0],
       avatarUrl: null,
-    });
+    };
+    this._currentUser.set(user);
+    this.persistUser(user);
   }
 
   async signup(
@@ -74,24 +91,29 @@ export class AuthService {
     const data: AuthResponse = await res.json();
     localStorage.setItem('token', data.token);
 
-    this._currentUser.set({
+    const user: User = {
       id: String(data.user.id),
       username: data.user.username,
       email: data.user.email,
       role: 'Student',
       joinDate: new Date().toISOString().split('T')[0],
       avatarUrl: null,
-    });
+    };
+    this._currentUser.set(user);
+    this.persistUser(user);
   }
 
   updateProfile(fields: Partial<User>) {
     const current = this._currentUser();
     if (!current) return;
-    this._currentUser.set({ ...current, ...fields });
+    const updated = { ...current, ...fields };
+    this._currentUser.set(updated);
+    this.persistUser(updated);
   }
 
   logout() {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     this._currentUser.set(null);
     this.router.navigate(['/login']);
   }

@@ -4,21 +4,23 @@ import "time"
 
 // Animals represents a wildlife sighting record in the database.
 type Animals struct {
-	ID          int       `json:"id"`
-	Species     string    `json:"species"`
-	ImageURL    string    `json:"image_url"`
-	Latitude    float64   `json:"latitude"`
-	Longitude   float64   `json:"longitude"`
-	Address     string    `json:"address"`
-	Category    string    `json:"category"`
-	Quantity    int       `json:"quantity"`
-	Behavior    string    `json:"behavior"`
-	Description string    `json:"description"`
-	Date        string    `json:"date"`
-	Time        string    `json:"time"`
-	UserID      int       `json:"user_id"`
-	Username    string    `json:"username"`
-	CreateTime  time.Time `json:"created_at"`
+	ID             int       `json:"id"`
+	Species        string    `json:"species"`
+	ImageURL       string    `json:"image_url"`
+	Latitude       float64   `json:"latitude"`
+	Longitude      float64   `json:"longitude"`
+	Address        string    `json:"address"`
+	Category       string    `json:"category"`
+	Quantity       int       `json:"quantity"`
+	Behavior       string    `json:"behavior"`
+	Description    string    `json:"description"`
+	Date           string    `json:"date"`
+	Time           string    `json:"time"`
+	UserID         int       `json:"user_id"`
+	Username       string    `json:"username"`
+	CreateTime     time.Time `json:"created_at"`
+	LikeCount      int       `json:"like_count"`
+	DistanceMeters float64   `json:"distance_meters,omitempty"`
 }
 
 type CreateSightingRequest struct {
