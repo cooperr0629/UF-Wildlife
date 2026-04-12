@@ -47,29 +47,54 @@
 
 <div id="map"></div>
 
-<!-- Category filter chips -->
-<div class="category-filter-bar">
-  <button
-    class="cat-chip"
-    [class.selected]="activeCategory() === ''"
-    (click)="selectCategory('')"
-  >
-    All
-  </button>
-  @for (cat of categories; track cat) {
-    <button
-      class="cat-chip"
-      [class.selected]="activeCategory() === cat"
-      [style.--chip-color]="categoryColor(cat)"
-      (click)="selectCategory(cat)"
-    >
-      <span class="cat-chip-dot"></span>
-      {{ cat }}
+<!-- Filter toggle button -->
+<button class="filter-toggle" (click)="toggleFilterPanel()" [class.active]="showFilterPanel()">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="4" y1="6" x2="20" y2="6"/>
+    <line x1="8" y1="12" x2="20" y2="12"/>
+    <line x1="12" y1="18" x2="20" y2="18"/>
+    @if (activeCategory()) {
+      <circle cx="4" cy="12" r="2.5" fill="currentColor" stroke="none"/>
+      <circle cx="8" cy="18" r="2.5" fill="currentColor" stroke="none"/>
+    }
+  </svg>
+  Filter@if (activeCategory()) {<span class="filter-active-dot"></span>}
+</button>
+
+<!-- Category filter drawer (slides from left) -->
+<div class="filter-drawer" [class.open]="showFilterPanel()">
+  <div class="filter-drawer-header">
+    <span class="filter-drawer-title">Filter by Category</span>
+    @if (isFilterLoading()) {
+      <span class="cat-filter-loading">…</span>
+    }
+    <button class="filter-drawer-close" (click)="toggleFilterPanel()">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
     </button>
-  }
-  @if (isFilterLoading()) {
-    <span class="cat-filter-loading">…</span>
-  }
+  </div>
+  <div class="filter-drawer-list">
+    <button
+      class="filter-drawer-item"
+      [class.selected]="activeCategory() === ''"
+      (click)="selectCategory('')"
+    >
+      <span class="filter-drawer-dot all-dot"></span>
+      All
+    </button>
+    @for (cat of categories; track cat) {
+      <button
+        class="filter-drawer-item"
+        [class.selected]="activeCategory() === cat"
+        [style.--chip-color]="categoryColor(cat)"
+        (click)="selectCategory(cat)"
+      >
+        <span class="filter-drawer-dot"></span>
+        {{ cat }}
+      </button>
+    }
+  </div>
 </div>
 
 <!-- Stats toggle button -->
@@ -189,6 +214,21 @@
     }
   </div>
 }
+
+<!-- Zoom controls (below heatmap) -->
+<div class="zoom-controls">
+  <button class="zoom-btn" (click)="zoomIn()" title="Zoom in">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </button>
+  <div class="zoom-divider"></div>
+  <button class="zoom-btn" (click)="zoomOut()" title="Zoom out">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+      <line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </button>
+</div>
 
 <!-- Heatmap toggle button -->
 <button class="heatmap-toggle" (click)="toggleHeatmap()" [class.active]="showHeatmap()">

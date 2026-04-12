@@ -64,6 +64,10 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private redIcon: L.Icon | null = null;
   private sightingMarkers: L.Marker[] = [];
   private heatmapLayers: L.CircleMarker[] = [];
+  private heatmapCanvas: HTMLCanvasElement | null = null;
+  private heatmapRedrawFn: (() => void) | null = null;
+  private heatmapZoomAnimFn: ((e: any) => void) | null = null;
+  private heatmapZoomEndFn: (() => void) | null = null;
   private iconCache = new Map<string, L.Icon>();
 
   query = signal('');
@@ -100,6 +104,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   // Category filter
   activeCategory = signal<string>('');
   isFilterLoading = signal(false);
+  showFilterPanel = signal(false);
 
   // Stats
   showStatsPanel = signal(false);
@@ -149,6 +154,9 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.showHeatmap.set(!this.showHeatmap());
   }
 
+  zoomIn() { this.map?.zoomIn(); }
+  zoomOut() { this.map?.zoomOut(); }
+
   private defaultSighting(): SightingForm {
     const now = new Date();
     return {
@@ -180,6 +188,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.map = leaflet.map('map', {
       center: [29.6436, -82.3549],
       zoom: 15,
+      zoomControl: false,
     });
     _hmrMapInstance = this.map;
 
@@ -704,6 +713,10 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     return `${(meters / 1000).toFixed(2)} km`;
   }
 
+  toggleFilterPanel() {
+    this.showFilterPanel.set(!this.showFilterPanel());
+  }
+
   // ---- Category filter ----
   async selectCategory(cat: string) {
     if (this.activeCategory() === cat) return;
@@ -824,36 +837,139 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private renderHeatmap(sightings: Sighting[]) {
     if (!this.map || !this.leaflet) return;
     this.clearHeatmap();
+    if (sightings.length === 0) return;
+
+    const mapEl = this.map.getContainer();
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:450;';
+    mapEl.appendChild(canvas);
+    this.heatmapCanvas = canvas;
+
+    const draw = () => {
+      canvas.style.transform = '';
+      canvas.style.transformOrigin = '';
+      canvas.width = mapEl.offsetWidth;
+      canvas.height = mapEl.offsetHeight;
+      this.drawHeatmapOnCanvas(canvas, sightings);
+    };
+    draw();
+    this.heatmapRedrawFn = draw;
+
+    // Smooth zoom: apply CSS scale during animation, redraw after
+    this.heatmapZoomAnimFn = (e: any) => {
+      const map = this.map!;
+      const scale = map.getZoomScale(e.zoom, map.getZoom());
+      const origin = map.latLngToContainerPoint(e.center ?? map.getCenter());
+      canvas.style.transformOrigin = `${origin.x}px ${origin.y}px`;
+      canvas.style.transform = `scale(${scale})`;
+    };
+    this.heatmapZoomEndFn = draw;
+
+    this.map.on('move resize', draw);
+    this.map.on('zoomanim', this.heatmapZoomAnimFn);
+    this.map.on('zoomend', this.heatmapZoomEndFn);
+  }
+
+  private drawHeatmapOnCanvas(canvas: HTMLCanvasElement, sightings: Sighting[]) {
+    if (!this.map) return;
+    const w = canvas.width;
+    const h = canvas.height;
+
+    // Offscreen: draw intensity blobs with additive blending
+    const offscreen = document.createElement('canvas');
+    offscreen.width = w;
+    offscreen.height = h;
+    const octx = offscreen.getContext('2d')!;
+    octx.globalCompositeOperation = 'lighter';
+
+    const zoom = this.map.getZoom();
+    const zoomScale = Math.pow(2, zoom - 15);
+    // When zoomed out, reduce alpha so stacked points don't saturate to yellow
+    const alphaScale = Math.min(1, Math.pow(2, zoom - 14) / sightings.length);
 
     for (const s of sightings) {
-      const outerRadius = Math.min(22 + s.quantity * 6, 58);
-      const innerRadius = Math.max(outerRadius * 0.45, 8);
-
-      const outer = this.leaflet.circleMarker([s.latitude, s.longitude], {
-        radius: outerRadius,
-        fillColor: '#FA7C1C',
-        fillOpacity: 0.14,
-        color: 'transparent',
-        weight: 0,
-        interactive: false,
-      }).addTo(this.map);
-
-      const inner = this.leaflet.circleMarker([s.latitude, s.longitude], {
-        radius: innerRadius,
-        fillColor: '#E53200',
-        fillOpacity: 0.42,
-        color: 'transparent',
-        weight: 0,
-        interactive: false,
-      }).addTo(this.map);
-
-      this.heatmapLayers.push(outer, inner);
+      const pt = this.map.latLngToContainerPoint([s.latitude, s.longitude]);
+      const baseRadius = Math.min(50 + s.quantity * 10, 100);
+      // Shrink gently: keep at least 40% of base radius when zoomed out
+      const radius = Math.max(baseRadius * Math.pow(zoomScale, 0.4), baseRadius * 0.4);
+      const alpha = Math.min((0.5 + s.quantity * 0.08) * alphaScale, 0.9);
+      const grad = octx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radius);
+      grad.addColorStop(0,   `rgba(255,255,255,${alpha})`);
+      grad.addColorStop(0.3, `rgba(200,200,200,${alpha * 0.6})`);
+      grad.addColorStop(1,   'rgba(0,0,0,0)');
+      octx.fillStyle = grad;
+      octx.beginPath();
+      octx.arc(pt.x, pt.y, radius, 0, Math.PI * 2);
+      octx.fill();
     }
+
+    // Colorize: map intensity (0-255) → radar color ramp
+    const imageData = octx.getImageData(0, 0, w, h);
+    const d = imageData.data;
+    const ramp = this.buildHeatColorRamp();
+
+    for (let i = 0; i < d.length; i += 4) {
+      const v = Math.min(d[i], 255);
+      if (v === 0) { d[i + 3] = 0; continue; }
+      d[i]     = ramp[v * 3];
+      d[i + 1] = ramp[v * 3 + 1];
+      d[i + 2] = ramp[v * 3 + 2];
+      d[i + 3] = Math.min(Math.round(v * 1.8), 230);
+    }
+    octx.putImageData(imageData, 0, 0);
+
+    const ctx = canvas.getContext('2d')!;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(offscreen, 0, 0);
+  }
+
+  private buildHeatColorRamp(): Uint8Array {
+    // Radar-style: blue → purple → red → orange → yellow
+    const stops: [number, [number, number, number]][] = [
+      [0,   [41,  182, 246]],  // light blue
+      [100, [156,  39, 176]],  // purple
+      [180, [229,  57,  53]],  // red
+      [225, [255, 109,   0]],  // orange
+      [255, [255, 214,   0]],  // yellow
+    ];
+    const ramp = new Uint8Array(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      for (let s = 0; s < stops.length - 1; s++) {
+        const [v0, c0] = stops[s];
+        const [v1, c1] = stops[s + 1];
+        if (i >= v0 && i <= v1) {
+          const t = (i - v0) / (v1 - v0);
+          ramp[i * 3]     = Math.round(c0[0] + t * (c1[0] - c0[0]));
+          ramp[i * 3 + 1] = Math.round(c0[1] + t * (c1[1] - c0[1]));
+          ramp[i * 3 + 2] = Math.round(c0[2] + t * (c1[2] - c0[2]));
+          break;
+        }
+      }
+    }
+    return ramp;
   }
 
   private clearHeatmap() {
     for (const l of this.heatmapLayers) l.remove();
     this.heatmapLayers = [];
+    if (this.heatmapCanvas) {
+      this.heatmapCanvas.remove();
+      this.heatmapCanvas = null;
+    }
+    if (this.map) {
+      if (this.heatmapRedrawFn) {
+        this.map.off('move resize', this.heatmapRedrawFn);
+        this.heatmapRedrawFn = null;
+      }
+      if (this.heatmapZoomAnimFn) {
+        this.map.off('zoomanim', this.heatmapZoomAnimFn);
+        this.heatmapZoomAnimFn = null;
+      }
+      if (this.heatmapZoomEndFn) {
+        this.map.off('zoomend', this.heatmapZoomEndFn);
+        this.heatmapZoomEndFn = null;
+      }
+    }
   }
 
   ngOnDestroy() {

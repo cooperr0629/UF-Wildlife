@@ -15,6 +15,97 @@
   margin: 0 0 20px;
 }
 
+/* ── Species search ── */
+.species-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #f5f5f7;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 0 12px;
+  margin-bottom: 12px;
+  transition: border-color 0.15s;
+}
+
+.species-search-wrap:focus-within {
+  border-color: #0021A5;
+  background: #fff;
+}
+
+.species-search-icon {
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.species-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  padding: 11px 0;
+  outline: none;
+  color: #111;
+}
+
+.species-search-input::placeholder { color: #aaa; }
+
+.species-search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  color: #888;
+}
+
+.species-search-results {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  margin-top: 0;
+}
+
+.species-search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.12s;
+}
+
+.species-search-result-item:last-child { border-bottom: none; }
+.species-search-result-item:hover { background: #f7f8fc; }
+
+.result-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111;
+}
+
+.result-category {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.species-search-empty {
+  font-size: 13px;
+  color: #999;
+  margin: 0 0 16px;
+  padding: 0 4px;
+}
+
 /* Back header */
 .back-header {
   display: flex;

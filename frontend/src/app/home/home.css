@@ -3,6 +3,7 @@
   flex-direction: column;
   height: 100vh;
   height: 100dvh;
+  position: relative;
 }
 
 .top-bar {
@@ -11,13 +12,17 @@
   justify-content: center;
   height: 64px;
   padding: 0 20px;
-  background: linear-gradient(to right, #0021A5 0%, #1a4fd6 40%, #c44a10 60%, #FA4616 100%);
-  background-size: 160% 100%;
-  background-position: center;
-  color: #fff;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  color: #111;
   flex-shrink: 0;
   z-index: 1000;
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
 }
 
 
@@ -31,8 +36,8 @@
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  background: linear-gradient(135deg, #FA4616 0%, #FA7C1C 100%);
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -53,20 +58,24 @@
   font-weight: 800;
   letter-spacing: 0.3px;
   line-height: 1;
+  color: #111;
 }
 
 .logo-sub {
   font-size: 10px;
   font-weight: 400;
-  opacity: 0.75;
+  opacity: 0.6;
   letter-spacing: 0.5px;
   line-height: 1;
+  color: #555;
 }
 
 .content {
   flex: 1;
   overflow: hidden;
   position: relative;
+  /* extend content to fill full height, top-bar floats above */
+  height: calc(100% - 60px);
 }
 
 .bottom-bar {

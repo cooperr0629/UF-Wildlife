@@ -8,6 +8,7 @@ import {
   OnDestroy,
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { SightingService, CATEGORY_COLORS, SPECIES_BY_CATEGORY, SPECIES_INFO } from '../sighting.service';
 import type * as L from 'leaflet';
 
@@ -19,7 +20,7 @@ interface SpeciesEntry {
 @Component({
   selector: 'app-species',
   standalone: true,
-  imports: [],
+  imports: [FormsModule],
   templateUrl: './species.html',
   styleUrl: './species.css',
 })
@@ -43,6 +44,21 @@ export class SpeciesComponent implements OnDestroy {
 
   selectedCategory = signal<string | null>(null);
   selectedSpecies = signal<string | null>(null);
+  searchQuery = signal('');
+
+  readonly searchResults = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    if (!q) return [];
+    const results: { name: string; category: string }[] = [];
+    for (const cat of this.categories) {
+      for (const sp of (SPECIES_BY_CATEGORY[cat] || [])) {
+        if (sp.toLowerCase().includes(q)) {
+          results.push({ name: sp, category: cat });
+        }
+      }
+    }
+    return results.slice(0, 20);
+  });
 
   readonly sightingsByCategory = computed(() => {
     const all = this.sightingService.sightings();
@@ -166,6 +182,12 @@ export class SpeciesComponent implements OnDestroy {
 
   selectSpecies(name: string) {
     this.selectedSpecies.set(name);
+  }
+
+  selectSearchResult(result: { name: string; category: string }) {
+    this.searchQuery.set('');
+    this.selectedCategory.set(result.category);
+    this.selectedSpecies.set(result.name);
   }
 
   goBack() {

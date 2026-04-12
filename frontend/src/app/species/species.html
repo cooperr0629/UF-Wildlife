@@ -163,6 +163,46 @@
   <!-- First level: category grid cards -->
   <div class="species-page">
     <h1 class="page-title">Species</h1>
+
+    <!-- Search box -->
+    <div class="species-search-wrap">
+      <svg class="species-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#888" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input
+        class="species-search-input"
+        type="text"
+        placeholder="Search species..."
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+      />
+      @if (searchQuery()) {
+        <button class="species-search-clear" (click)="searchQuery.set('')">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#888" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      }
+    </div>
+
+    <!-- Search results -->
+    @if (searchQuery() && searchResults().length > 0) {
+      <div class="species-search-results">
+        @for (r of searchResults(); track r.name) {
+          <button class="species-search-result-item" (click)="selectSearchResult(r)">
+            <span class="species-dot" [style.background]="color(r.category)"></span>
+            <span class="result-name">{{ r.name }}</span>
+            <span class="result-category" [style.color]="color(r.category)">{{ r.category }}</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ccc" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        }
+      </div>
+    } @else if (searchQuery() && searchResults().length === 0) {
+      <p class="species-search-empty">No species found for "{{ searchQuery() }}"</p>
+    }
+
     <div class="category-grid">
       @for (cat of categories; track cat) {
         <button class="category-card" (click)="selectCategory(cat)">
