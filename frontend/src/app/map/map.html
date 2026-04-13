@@ -335,7 +335,12 @@
           @for (c of comments(); track c.ID) {
             <div class="comment-item">
               <div class="comment-header">
-                <span class="comment-sender">{{ c.Sender }}</span>
+                <button
+                  class="comment-sender comment-sender-btn"
+                  (click)="openAddFriendPopup(c.Sender)"
+                  [disabled]="c.Sender === currentUser()?.username"
+                  [title]="c.Sender === currentUser()?.username ? 'You' : 'Add ' + c.Sender + ' as friend'"
+                >{{ c.Sender }}</button>
                 <div class="comment-header-right">
                   <span class="comment-time">{{ formatCommentTime(c.CreateTime) }}</span>
                   @if (isCommentOwner(c)) {
@@ -380,6 +385,37 @@
       } @else {
         <div class="comment-login-prompt">
           <a routerLink="/login" class="comment-login-link" (click)="closeSightingDetail()">Log in</a> to leave a comment
+        </div>
+      }
+    </div>
+  </div>
+}
+
+<!-- Add Friend Popup -->
+@if (addFriendTarget()) {
+  <div class="modal-overlay" (click)="closeAddFriendPopup()">
+    <div class="add-friend-modal" (click)="$event.stopPropagation()">
+      <div class="add-friend-avatar">{{ addFriendTarget()!.charAt(0).toUpperCase() }}</div>
+      <h3 class="add-friend-name">{{ addFriendTarget() }}</h3>
+      @if (addFriendStatus() === 'idle') {
+        <p class="add-friend-desc">Add this user as a friend?</p>
+        <div class="add-friend-actions">
+          <button class="btn-add-friend" (click)="confirmAddFriend()">Add Friend</button>
+          <button class="btn-dismiss" (click)="closeAddFriendPopup()">Cancel</button>
+        </div>
+      } @else if (addFriendStatus() === 'loading') {
+        <p class="add-friend-desc">Sending request...</p>
+      } @else if (addFriendStatus() === 'success') {
+        <p class="add-friend-desc add-friend-ok">Friend request sent!</p>
+        <button class="btn-dismiss" (click)="closeAddFriendPopup()">Close</button>
+      } @else if (addFriendStatus() === 'already') {
+        <p class="add-friend-desc add-friend-ok">Already friends or request pending.</p>
+        <button class="btn-dismiss" (click)="closeAddFriendPopup()">Close</button>
+      } @else if (addFriendStatus() === 'error') {
+        <p class="add-friend-desc add-friend-err">{{ addFriendError() || 'Failed to send request.' }}</p>
+        <div class="add-friend-actions">
+          <button class="btn-add-friend" (click)="confirmAddFriend()">Retry</button>
+          <button class="btn-dismiss" (click)="closeAddFriendPopup()">Cancel</button>
         </div>
       }
     </div>

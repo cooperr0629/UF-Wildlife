@@ -1,19 +1,22 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth.service';
 import { SightingService, Sighting, CATEGORY_COLORS } from '../sighting.service';
+import { FriendService, Friend, FriendRequest } from '../friend.service';
+import { ChatComponent } from '../chat/chat';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, ChatComponent],
   templateUrl: './profile.html',
   styleUrl: './profile.css',
 })
-export class ProfileComponent {
+export class ProfileComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private sightingService = inject(SightingService);
+  private friendService = inject(FriendService);
 
   readonly user = this.authService.currentUser;
   readonly isLoggedIn = this.authService.isLoggedIn;
@@ -26,6 +29,13 @@ export class ProfileComponent {
   confirmDeleteId = signal<string | null>(null);
 
   avatarPreview = signal<string | null>(null);
+
+  // Friends & chat
+  friends = signal<Friend[]>([]);
+  friendRequests = signal<FriendRequest[]>([]);
+  chatFriend = signal<{ id: number; name: string } | null>(null);
+  friendsTab = signal<'friends' | 'requests'>('friends');
+  private friendPollInterval: ReturnType<typeof setInterval> | null = null;
 
   categories = ['Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish', 'Insect', 'Other'];
   behaviors = ['Resting', 'Feeding', 'Moving', 'Nesting', 'Swimming', 'Flying', 'Unknown'];
@@ -64,6 +74,59 @@ export class ProfileComponent {
       topCategory,
     };
   });
+
+  async ngOnInit() {
+    const u = this.authService.currentUser();
+    if (u) {
+      await this.loadFriendData(u.id);
+      this.friendPollInterval = setInterval(() => {
+        const user = this.authService.currentUser();
+        if (user) this.loadFriendData(user.id);
+      }, 10000);
+    }
+  }
+
+  ngOnDestroy() {
+    if (this.friendPollInterval) clearInterval(this.friendPollInterval);
+  }
+
+  private async loadFriendData(userId: string) {
+    const [friends, requests] = await Promise.all([
+      this.friendService.getFriends(userId),
+      this.friendService.getFriendRequests(userId),
+    ]);
+    this.friends.set(friends);
+    this.friendRequests.set(requests);
+  }
+
+  async acceptRequest(req: FriendRequest) {
+    const u = this.authService.currentUser();
+    if (!u) return;
+    await this.friendService.acceptRequest(req.id, u.id);
+    await this.loadFriendData(u.id);
+  }
+
+  async declineRequest(req: FriendRequest) {
+    const u = this.authService.currentUser();
+    if (!u) return;
+    await this.friendService.declineRequest(req.id, u.id);
+    await this.loadFriendData(u.id);
+  }
+
+  async removeFriend(friend: Friend) {
+    const u = this.authService.currentUser();
+    if (!u) return;
+    await this.friendService.removeFriend(u.id, friend.friendship_id);
+    await this.loadFriendData(u.id);
+  }
+
+  openChat(friend: Friend) {
+    this.chatFriend.set({ id: friend.friend_id, name: friend.username });
+  }
+
+  closeChat() {
+    this.chatFriend.set(null);
+  }
 
   categoryColor(cat: string): string {
     return CATEGORY_COLORS[cat] || CATEGORY_COLORS['Other'];

@@ -13,6 +13,7 @@ import { RouterLink } from '@angular/router';
 import { SightingService, Sighting, CATEGORY_COLORS, SPECIES_BY_CATEGORY } from '../sighting.service';
 import { AuthService } from '../auth.service';
 import { UploadService } from '../upload.service';
+import { FriendService } from '../friend.service';
 import type * as L from 'leaflet';
 
 // Module-level reference survives HMR cycles
@@ -58,6 +59,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private sightingService = inject(SightingService);
   private authService = inject(AuthService);
   private uploadService = inject(UploadService);
+  private friendService = inject(FriendService);
   private map: L.Map | null = null;
   private leaflet: typeof L | null = null;
   private searchMarker: L.Marker | null = null;
@@ -110,6 +112,11 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   showStatsPanel = signal(false);
   isLoadingStats = signal(false);
   stats = signal<{ totalSightings: number; totalUsers: number; byCategory: Record<string, number> } | null>(null);
+
+  // Add friend popup
+  addFriendTarget = signal<string | null>(null);
+  addFriendStatus = signal<'idle' | 'loading' | 'success' | 'already' | 'error'>('idle');
+  addFriendError = signal('');
 
   // Nearby
   showNearbyPanel = signal(false);
@@ -842,6 +849,40 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       this.comments.update(list => list.filter(c => c.ID !== commentId));
     } catch (err) {
       console.error('Failed to delete comment:', err);
+    }
+  }
+
+  openAddFriendPopup(username: string) {
+    const me = this.authService.currentUser();
+    if (!me) { this.loginRequired.set(true); return; }
+    if (username === me.username) return;
+    this.addFriendTarget.set(username);
+    this.addFriendStatus.set('idle');
+  }
+
+  closeAddFriendPopup() {
+    this.addFriendTarget.set(null);
+    this.addFriendStatus.set('idle');
+    this.addFriendError.set('');
+  }
+
+  async confirmAddFriend() {
+    const me = this.authService.currentUser();
+    const target = this.addFriendTarget();
+    if (!me || !target) return;
+    this.addFriendStatus.set('loading');
+    this.addFriendError.set('');
+    try {
+      await this.friendService.sendFriendRequest(me.id, target);
+      this.addFriendStatus.set('success');
+    } catch (err: any) {
+      const msg: string = err?.message ?? 'Unknown error';
+      if (msg.includes('already') || msg.includes('conflict')) {
+        this.addFriendStatus.set('already');
+      } else {
+        this.addFriendError.set(msg);
+        this.addFriendStatus.set('error');
+      }
     }
   }
 

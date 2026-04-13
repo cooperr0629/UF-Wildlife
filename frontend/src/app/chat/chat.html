@@ -1,0 +1,51 @@
+<div class="chat-window">
+  <div class="chat-header">
+    <div class="chat-header-info">
+      <div class="chat-avatar">{{ friendName.charAt(0).toUpperCase() }}</div>
+      <span class="chat-friend-name">{{ friendName }}</span>
+    </div>
+    <button class="chat-close" (click)="close.emit()">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="chat-body" #messageList>
+    @if (isLoading()) {
+      <div class="chat-loading">Loading...</div>
+    } @else if (messages().length === 0) {
+      <div class="chat-empty">No messages yet. Say hi!</div>
+    } @else {
+      @for (msg of messages(); track msg.id) {
+        <div class="chat-msg-row" [class.mine]="isMine(msg)">
+          <div class="chat-bubble" [class.mine]="isMine(msg)">
+            <span class="chat-msg-text">{{ msg.content }}</span>
+            <span class="chat-msg-time">{{ formatTime(msg.created_at) }}</span>
+          </div>
+        </div>
+      }
+    }
+  </div>
+
+  <div class="chat-footer">
+    <input
+      class="chat-input"
+      type="text"
+      placeholder="Type a message..."
+      [ngModel]="inputText()"
+      (ngModelChange)="inputText.set($event)"
+      (keydown.enter)="sendMessage()"
+    />
+    <button
+      class="chat-send"
+      (click)="sendMessage()"
+      [disabled]="!inputText().trim() || isSending()"
+    >
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="22" y1="2" x2="11" y2="13"/>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </div>
+</div>

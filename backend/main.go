@@ -776,6 +776,337 @@ func handleSightings(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ──────────────────────────────────────────────
+// Friend system handlers
+// ──────────────────────────────────────────────
+
+// GET /api/users/search?username=X  — find a user by username
+func handleUserSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+	username := strings.TrimSpace(r.URL.Query().Get("username"))
+	if username == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "username query param required"})
+		return
+	}
+	var id int
+	var uname string
+	err := database.DB.QueryRow("SELECT id, username FROM users WHERE username = $1", username).Scan(&id, &uname)
+	if err == sql.ErrNoRows {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"id": id, "username": uname})
+}
+
+// POST /api/friends/request  body: {requester_id, receiver_username}
+func handleFriendRequest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+	var body struct {
+		RequesterID      int    `json:"requester_id"`
+		ReceiverUsername string `json:"receiver_username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.RequesterID == 0 || body.ReceiverUsername == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "requester_id and receiver_username required"})
+		return
+	}
+	var receiverID int
+	err := database.DB.QueryRow("SELECT id FROM users WHERE username = $1", body.ReceiverUsername).Scan(&receiverID)
+	if err == sql.ErrNoRows {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
+		return
+	}
+	if receiverID == body.RequesterID {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "cannot add yourself"})
+		return
+	}
+	// Check if friendship already exists in either direction
+	var existing string
+	err = database.DB.QueryRow(
+		`SELECT status FROM friendships WHERE (requester_id=$1 AND receiver_id=$2) OR (requester_id=$2 AND receiver_id=$1)`,
+		body.RequesterID, receiverID,
+	).Scan(&existing)
+	if err == nil {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "friendship already exists", "status": existing})
+		return
+	}
+	_, err = database.DB.Exec(
+		`INSERT INTO friendships (requester_id, receiver_id, status) VALUES ($1, $2, 'pending')`,
+		body.RequesterID, receiverID,
+	)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "pending"})
+}
+
+// GET /api/friends?user_id=N  — list accepted friends
+func handleFriendList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+	userIDStr := r.URL.Query().Get("user_id")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil || userID == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "valid user_id required"})
+		return
+	}
+	rows, err := database.DB.Query(
+		`SELECT f.id,
+			CASE WHEN f.requester_id=$1 THEN f.receiver_id ELSE f.requester_id END AS friend_id,
+			CASE WHEN f.requester_id=$1 THEN u2.username ELSE u1.username END AS friend_username
+		FROM friendships f
+		JOIN users u1 ON u1.id = f.requester_id
+		JOIN users u2 ON u2.id = f.receiver_id
+		WHERE (f.requester_id=$1 OR f.receiver_id=$1) AND f.status='accepted'`,
+		userID,
+	)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
+		return
+	}
+	defer rows.Close()
+	type Friend struct {
+		FriendshipID int    `json:"friendship_id"`
+		FriendID     int    `json:"friend_id"`
+		Username     string `json:"username"`
+	}
+	friends := []Friend{}
+	for rows.Next() {
+		var f Friend
+		if err := rows.Scan(&f.FriendshipID, &f.FriendID, &f.Username); err == nil {
+			friends = append(friends, f)
+		}
+	}
+	writeJSON(w, http.StatusOK, friends)
+}
+
+// GET /api/friends/requests?user_id=N  — pending requests received by user
+func handleFriendRequests(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+	userIDStr := r.URL.Query().Get("user_id")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil || userID == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "valid user_id required"})
+		return
+	}
+	rows, err := database.DB.Query(
+		`SELECT f.id, f.requester_id, u.username, f.created_at
+		FROM friendships f
+		JOIN users u ON u.id = f.requester_id
+		WHERE f.receiver_id=$1 AND f.status='pending'
+		ORDER BY f.created_at DESC`,
+		userID,
+	)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
+		return
+	}
+	defer rows.Close()
+	type Request struct {
+		ID          int       `json:"id"`
+		RequesterID int       `json:"requester_id"`
+		Username    string    `json:"username"`
+		CreatedAt   time.Time `json:"created_at"`
+	}
+	requests := []Request{}
+	for rows.Next() {
+		var req Request
+		if err := rows.Scan(&req.ID, &req.RequesterID, &req.Username, &req.CreatedAt); err == nil {
+			requests = append(requests, req)
+		}
+	}
+	writeJSON(w, http.StatusOK, requests)
+}
+
+// POST /api/friends/accept  body: {friendship_id, user_id}
+func handleFriendAccept(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+	var body struct {
+		FriendshipID int `json:"friendship_id"`
+		UserID       int `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.FriendshipID == 0 || body.UserID == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "friendship_id and user_id required"})
+		return
+	}
+	res, err := database.DB.Exec(
+		`UPDATE friendships SET status='accepted' WHERE id=$1 AND receiver_id=$2 AND status='pending'`,
+		body.FriendshipID, body.UserID,
+	)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
+		return
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "accepted"})
+}
+
+// POST /api/friends/decline  body: {friendship_id, user_id}
+func handleFriendDecline(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+	var body struct {
+		FriendshipID int `json:"friendship_id"`
+		UserID       int `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.FriendshipID == 0 || body.UserID == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "friendship_id and user_id required"})
+		return
+	}
+	res, err := database.DB.Exec(
+		`DELETE FROM friendships WHERE id=$1 AND (receiver_id=$2 OR requester_id=$2)`,
+		body.FriendshipID, body.UserID,
+	)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
+		return
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "request not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "declined"})
+}
+
+// POST /api/friends/remove  body: {friendship_id, user_id}
+func handleFriendRemove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+	var body struct {
+		FriendshipID int `json:"friendship_id"`
+		UserID       int `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.UserID == 0 || body.FriendshipID == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "friendship_id and user_id required"})
+		return
+	}
+	database.DB.Exec(
+		`DELETE FROM friendships WHERE id=$1 AND (requester_id=$2 OR receiver_id=$2)`,
+		body.FriendshipID, body.UserID,
+	)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
+}
+
+// GET  /api/dm?user1=N&user2=N  — chat history
+// POST /api/dm  body: {sender_id, receiver_id, content}
+func handleDM(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		u1, err1 := strconv.Atoi(r.URL.Query().Get("user1"))
+		u2, err2 := strconv.Atoi(r.URL.Query().Get("user2"))
+		if err1 != nil || err2 != nil || u1 == 0 || u2 == 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "user1 and user2 required"})
+			return
+		}
+		rows, err := database.DB.Query(
+			`SELECT dm.id, dm.sender_id, u.username, dm.receiver_id, dm.content, dm.created_at
+			FROM direct_messages dm
+			JOIN users u ON u.id = dm.sender_id
+			WHERE (dm.sender_id=$1 AND dm.receiver_id=$2) OR (dm.sender_id=$2 AND dm.receiver_id=$1)
+			ORDER BY dm.created_at ASC`,
+			u1, u2,
+		)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
+			return
+		}
+		defer rows.Close()
+		type DM struct {
+			ID         int       `json:"id"`
+			SenderID   int       `json:"sender_id"`
+			SenderName string    `json:"sender_name"`
+			ReceiverID int       `json:"receiver_id"`
+			Content    string    `json:"content"`
+			CreatedAt  time.Time `json:"created_at"`
+		}
+		msgs := []DM{}
+		for rows.Next() {
+			var m DM
+			if err := rows.Scan(&m.ID, &m.SenderID, &m.SenderName, &m.ReceiverID, &m.Content, &m.CreatedAt); err == nil {
+				msgs = append(msgs, m)
+			}
+		}
+		writeJSON(w, http.StatusOK, msgs)
+
+	case http.MethodPost:
+		var body struct {
+			SenderID   int    `json:"sender_id"`
+			ReceiverID int    `json:"receiver_id"`
+			Content    string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.SenderID == 0 || body.ReceiverID == 0 || strings.TrimSpace(body.Content) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sender_id, receiver_id, content required"})
+			return
+		}
+		var id int
+		err := database.DB.QueryRow(
+			`INSERT INTO direct_messages (sender_id, receiver_id, content) VALUES ($1, $2, $3) RETURNING id`,
+			body.SenderID, body.ReceiverID, body.Content,
+		).Scan(&id)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]int{"id": id})
+
+	default:
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+	}
+}
+
+// Router for /api/friends and /api/friends/
+func handleFriendsRouter(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/friends")
+	path = strings.TrimSuffix(path, "/")
+	switch path {
+	case "", "/list":
+		handleFriendList(w, r)
+	case "/request":
+		handleFriendRequest(w, r)
+	case "/requests":
+		handleFriendRequests(w, r)
+	case "/accept":
+		handleFriendAccept(w, r)
+	case "/decline":
+		handleFriendDecline(w, r)
+	case "/remove":
+		handleFriendRemove(w, r)
+	default:
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+	}
+}
+
 func main() {
 	loadEnv(".env")
 	database.InitDB()
@@ -786,6 +1117,10 @@ func main() {
 	http.HandleFunc("/api/sightings/", corsMiddleware(handleSightings))
 	http.HandleFunc("/api/stats", corsMiddleware(handleStats))
 	http.HandleFunc("/api/messages/", corsMiddleware(handleDeleteComment))
+	http.HandleFunc("/api/friends", corsMiddleware(handleFriendsRouter))
+	http.HandleFunc("/api/friends/", corsMiddleware(handleFriendsRouter))
+	http.HandleFunc("/api/dm", corsMiddleware(handleDM))
+	http.HandleFunc("/api/users/search", corsMiddleware(handleUserSearch))
 
 	http.HandleFunc("/api/parking", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

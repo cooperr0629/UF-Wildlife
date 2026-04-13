@@ -79,6 +79,29 @@ func createTables() {
 		FOREIGN KEY (sighting_id) REFERENCES animals(id) ON DELETE CASCADE
 	);`
 
+	friendshipsTable := `
+	CREATE TABLE IF NOT EXISTS friendships (
+		id SERIAL PRIMARY KEY,
+		requester_id INTEGER NOT NULL,
+		receiver_id INTEGER NOT NULL,
+		status TEXT NOT NULL DEFAULT 'pending',
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
+		UNIQUE(requester_id, receiver_id)
+	);`
+
+	directMessagesTable := `
+	CREATE TABLE IF NOT EXISTS direct_messages (
+		id SERIAL PRIMARY KEY,
+		sender_id INTEGER NOT NULL,
+		receiver_id INTEGER NOT NULL,
+		content TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+
 	_, err := DB.Exec(usersTable)
 	if err != nil {
 		log.Fatal("Error creating users table:", err)
@@ -97,6 +120,16 @@ func createTables() {
 	_, err = DB.Exec(sightingLikesTable)
 	if err != nil {
 		log.Fatal("Error creating sighting_likes table:", err)
+	}
+
+	_, err = DB.Exec(friendshipsTable)
+	if err != nil {
+		log.Fatal("Error creating friendships table:", err)
+	}
+
+	_, err = DB.Exec(directMessagesTable)
+	if err != nil {
+		log.Fatal("Error creating direct_messages table:", err)
 	}
 
 	log.Println("Database tables created successfully")

@@ -58,6 +58,81 @@
       </section>
     }
 
+    <!-- Friends Section -->
+    <section class="friends-section">
+      <div class="friends-header">
+        <button
+          class="friends-tab"
+          [class.active]="friendsTab() === 'friends'"
+          (click)="friendsTab.set('friends')"
+        >
+          Friends
+          @if (friends().length > 0) {
+            <span class="friends-badge">{{ friends().length }}</span>
+          }
+        </button>
+        <button
+          class="friends-tab"
+          [class.active]="friendsTab() === 'requests'"
+          (click)="friendsTab.set('requests')"
+        >
+          Requests
+          @if (friendRequests().length > 0) {
+            <span class="friends-badge requests-badge">{{ friendRequests().length }}</span>
+          }
+        </button>
+      </div>
+
+      @if (friendsTab() === 'friends') {
+        @if (friends().length === 0) {
+          <p class="friends-empty">No friends yet. Click on a username in comments to add one!</p>
+        } @else {
+          <div class="friends-list">
+            @for (f of friends(); track f.friendship_id) {
+              <div class="friend-item">
+                <div class="friend-avatar" (click)="openChat(f)">
+                  {{ f.username.charAt(0).toUpperCase() }}
+                </div>
+                <span class="friend-username" (click)="openChat(f)">{{ f.username }}</span>
+                <div class="friend-actions">
+                  <button class="btn-chat" (click)="openChat(f)" title="Chat">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    Chat
+                  </button>
+                  <button class="btn-remove-friend" (click)="removeFriend(f)" title="Remove friend">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      } @else {
+        @if (friendRequests().length === 0) {
+          <p class="friends-empty">No pending friend requests.</p>
+        } @else {
+          <div class="friends-list">
+            @for (req of friendRequests(); track req.id) {
+              <div class="friend-item">
+                <div class="friend-avatar req-avatar">
+                  {{ req.username.charAt(0).toUpperCase() }}
+                </div>
+                <span class="friend-username">{{ req.username }}</span>
+                <div class="friend-actions">
+                  <button class="btn-accept" (click)="acceptRequest(req)">Accept</button>
+                  <button class="btn-decline" (click)="declineRequest(req)">Decline</button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      }
+    </section>
+
     <!-- My Sightings -->
     <section class="sightings-section">
       <h3>My Sightings</h3>
@@ -221,6 +296,15 @@
     </section>
 
   </div>
+
+  <!-- Chat Window -->
+  @if (chatFriend()) {
+    <app-chat
+      [friendId]="chatFriend()!.id"
+      [friendName]="chatFriend()!.name"
+      (close)="closeChat()"
+    />
+  }
 } @else {
   <div class="placeholder">
     <h2>Profile</h2>
