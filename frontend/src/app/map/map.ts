@@ -798,21 +798,30 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  currentUser() {
+    return this.authService.currentUser();
+  }
+
   async submitComment() {
     const content = this.commentText().trim();
     const s = this.selectedSighting();
+    const user = this.authService.currentUser();
     if (!content || !s) return;
+
+    if (!user) {
+      this.loginRequired.set(true);
+      return;
+    }
 
     this.isSubmittingComment.set(true);
     try {
-      const user = this.authService.currentUser();
       await fetch(`http://localhost:8080/api/sightings/${s.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content,
-          sender: user?.username ?? 'Anonymous',
-          sender_id: user?.id ?? '',
+          sender: user.username,
+          sender_id: user.id,
         }),
       });
       this.commentText.set('');
@@ -820,6 +829,35 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     } finally {
       this.isSubmittingComment.set(false);
     }
+  }
+
+  isCommentOwner(comment: Comment): boolean {
+    const user = this.authService.currentUser();
+    return !!user && user.username === comment.Sender;
+  }
+
+  async deleteComment(commentId: number) {
+    try {
+      await fetch(`http://localhost:8080/api/messages/${commentId}`, { method: 'DELETE' });
+      this.comments.update(list => list.filter(c => c.ID !== commentId));
+    } catch (err) {
+      console.error('Failed to delete comment:', err);
+    }
+  }
+
+  formatCommentTime(isoString: string): string {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
   clearSearch() {

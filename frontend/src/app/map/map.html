@@ -320,7 +320,12 @@
 
     <!-- Comments -->
     <div class="comments-section">
-      <h4 class="comments-title">Comments</h4>
+      <h4 class="comments-title">
+        Comments
+        @if (comments().length > 0) {
+          <span class="comments-count">{{ comments().length }}</span>
+        }
+      </h4>
       @if (isLoadingComments()) {
         <p class="comments-loading">Loading...</p>
       } @else if (comments().length === 0) {
@@ -329,29 +334,54 @@
         <div class="comments-list">
           @for (c of comments(); track c.ID) {
             <div class="comment-item">
-              <span class="comment-sender">{{ c.Sender }}</span>
+              <div class="comment-header">
+                <span class="comment-sender">{{ c.Sender }}</span>
+                <div class="comment-header-right">
+                  <span class="comment-time">{{ formatCommentTime(c.CreateTime) }}</span>
+                  @if (isCommentOwner(c)) {
+                    <button
+                      class="comment-delete"
+                      (click)="deleteComment(c.ID)"
+                      title="Delete comment"
+                    >
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14H6L5 6"/>
+                        <path d="M10 11v6M14 11v6"/>
+                        <path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  }
+                </div>
+              </div>
               <span class="comment-content">{{ c.Content }}</span>
             </div>
           }
         </div>
       }
-      <div class="comment-input-row">
-        <input
-          type="text"
-          class="comment-input"
-          placeholder="Add a comment..."
-          [ngModel]="commentText()"
-          (ngModelChange)="commentText.set($event)"
-          (keydown.enter)="submitComment()"
-        />
-        <button
-          class="comment-send"
-          (click)="submitComment()"
-          [disabled]="!commentText().trim() || isSubmittingComment()"
-        >
-          {{ isSubmittingComment() ? '...' : 'Send' }}
-        </button>
-      </div>
+      @if (currentUser()) {
+        <div class="comment-input-row">
+          <input
+            type="text"
+            class="comment-input"
+            placeholder="Add a comment..."
+            [ngModel]="commentText()"
+            (ngModelChange)="commentText.set($event)"
+            (keydown.enter)="submitComment()"
+          />
+          <button
+            class="comment-send"
+            (click)="submitComment()"
+            [disabled]="!commentText().trim() || isSubmittingComment()"
+          >
+            {{ isSubmittingComment() ? '...' : 'Send' }}
+          </button>
+        </div>
+      } @else {
+        <div class="comment-login-prompt">
+          <a routerLink="/login" class="comment-login-link" (click)="closeSightingDetail()">Log in</a> to leave a comment
+        </div>
+      }
     </div>
   </div>
 }
