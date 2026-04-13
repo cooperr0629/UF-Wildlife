@@ -446,3 +446,275 @@ curl "http://localhost:8080/api/sightings/1/likes?user_id=3"
 ```bash
 curl "http://localhost:8080/api/sightings/nearby?lat=29.6436&lng=-82.3549&radius=500"
 ```
+
+---
+
+## Frontend
+
+### New Features Added in Sprint 3
+
+Sprint 3 frontend work focuses on **social features and comment UX improvements** — wiring up the friend/chat system end-to-end and polishing the comment experience in the sighting detail panel.
+
+| # | Feature | Affected Page |
+|---|---------|---------------|
+| 1 | Comment system improvements (count badge, timestamps, delete, login guard) | Map — Sighting Detail Panel |
+| 2 | Friend request via comment username click | Map — Sighting Detail Panel |
+| 3 | Friends & Requests section | Profile |
+| 4 | Direct message chat window | Profile (floating overlay) |
+
+---
+
+### Feature Details
+
+#### 1. Comment System Improvements
+
+Four improvements to the existing comment panel on the sighting detail view:
+
+- **Comment count badge** — the "Comments" section header now shows a pill badge (e.g. `Comments 3`) when at least one comment exists, so users can see at a glance how active a thread is.
+- **Relative timestamps** — each comment now shows how long ago it was posted (`just now`, `5m ago`, `2h ago`, `3d ago`, or a short date like `Mar 15`) using the `CreateTime` field that was already returned by the API but previously unused.
+- **Delete own comment** — comment authors see a small trash-icon button on their own comments. Clicking it calls `DELETE /api/messages/{id}` and removes the comment from the list immediately (optimistic update).
+- **Login guard on input** — unauthenticated users no longer see the comment text box. Instead they see a `Log in to leave a comment` prompt that links directly to `/login`. Submitting a comment while logged out now triggers the existing login-required modal rather than silently posting as `"Anonymous"`.
+
+---
+
+#### 2. Friend Request System
+
+Users can add other users as friends from two places in the sighting detail panel.
+
+- **Clickable usernames in comments** — every commenter's username is rendered as a button. Clicking it opens a confirmation popup showing the target user's avatar initial and username.
+- **Clickable sighting poster username** — the uploader username shown below the sighting date/time is also a clickable button, so users can add the post author as a friend without needing to find one of their comments.
+- **Add friend popup states** — `idle` (confirm / cancel) → `loading` → `success` ("Friend request sent!") or `already` ("Already friends or request pending"). Server error messages are displayed directly in the popup.
+- **Hover color feedback** — username buttons turn UF orange (`#FA4616`) on hover instead of showing an underline, making the interactive affordance more visible.
+- **Self-protection** — the button is disabled when the username belongs to the currently logged-in user.
+- **Login guard** — clicking a username while logged out opens the login-required modal.
+
+---
+
+#### 3. Friends Section on Profile Page
+
+The Profile page gained a dedicated friends section above the sightings list, with two tabs:
+
+- **Friends tab** — lists all accepted friends, each showing an avatar initial, username, a **Chat** button, and a remove (×) button. Clicking the avatar or username also opens the chat window.
+- **Requests tab** — lists incoming pending friend requests with **Accept** and **Decline** buttons. An orange badge on the tab shows the pending count so users notice new requests at a glance.
+- **Auto-refresh** — the section polls the backend every 10 seconds so new requests and newly accepted friendships appear without a page reload.
+
+---
+
+#### 4. Direct Message Chat Window
+
+A floating chat window (`app-chat`) renders in the bottom-right corner of the screen when a friend is selected from the Profile page.
+
+- **Message bubbles** — outgoing messages are right-aligned in UF blue; incoming messages are left-aligned in light grey. Each bubble shows the send time (`HH:MM`).
+- **Send** — press Enter or click the send button to call `POST /api/dm`.
+- **Polling** — the window polls `GET /api/dm` every 3 seconds for new incoming messages and auto-scrolls to the latest message.
+- **Close** — the × button in the chat header dismisses the window.
+
+---
+
+### New Backend API Endpoints (added to support frontend features)
+
+Two new database tables were created: `friendships` (stores friend relationships with a `pending` / `accepted` status) and `direct_messages` (stores per-user chat messages). All friend endpoints are routed under `/api/friends/`.
+
+---
+
+#### `GET /api/users/search?username={username}`
+Find a user by exact username.
+
+| Status | Meaning |
+|--------|---------|
+| 200 OK | Returns `{ "id": <int>, "username": <string> }`. |
+| 400 Bad Request | `username` query param is missing. |
+| 404 Not Found | No user with that username exists. |
+
+---
+
+#### `POST /api/friends/request`
+Send a friend request from one user to another (identified by username).
+
+**Request body:**
+```json
+{ "requester_id": 3, "receiver_username": "gator456" }
+```
+
+| Status | Meaning |
+|--------|---------|
+| 201 Created | Returns `{ "status": "pending" }`. |
+| 400 Bad Request | Missing fields, or user tried to add themselves. |
+| 404 Not Found | `receiver_username` does not exist. |
+| 409 Conflict | Friendship already exists (pending or accepted) in either direction. |
+
+---
+
+#### `GET /api/friends?user_id={id}`
+Return the list of accepted friends for a user.
+
+| Status | Meaning |
+|--------|---------|
+| 200 OK | Returns array of friend objects. |
+| 400 Bad Request | `user_id` missing or non-numeric. |
+
+**Friend object:**
+```json
+{ "friendship_id": 7, "friend_id": 5, "username": "gator456" }
+```
+
+---
+
+#### `GET /api/friends/requests?user_id={id}`
+Return all pending friend requests received by a user, ordered newest first.
+
+| Status | Meaning |
+|--------|---------|
+| 200 OK | Returns array of request objects. |
+| 400 Bad Request | `user_id` missing or non-numeric. |
+
+**Request object:**
+```json
+{
+  "id": 12,
+  "requester_id": 3,
+  "username": "gator123",
+  "created_at": "2026-04-13T10:00:00Z"
+}
+```
+
+---
+
+#### `POST /api/friends/accept`
+Accept a pending friend request. Only the receiver may call this.
+
+**Request body:**
+```json
+{ "friendship_id": 12, "user_id": 5 }
+```
+
+| Status | Meaning |
+|--------|---------|
+| 200 OK | Returns `{ "status": "accepted" }`. |
+| 400 Bad Request | Missing fields. |
+| 404 Not Found | No matching pending request found. |
+
+---
+
+#### `POST /api/friends/decline`
+Decline or cancel a friend request. Either participant may call this.
+
+**Request body:**
+```json
+{ "friendship_id": 12, "user_id": 5 }
+```
+
+| Status | Meaning |
+|--------|---------|
+| 200 OK | Returns `{ "status": "declined" }`. |
+| 400 Bad Request | Missing fields. |
+| 404 Not Found | No matching request found. |
+
+---
+
+#### `POST /api/friends/remove`
+Remove an existing friendship. Either participant may call this.
+
+**Request body:**
+```json
+{ "friendship_id": 7, "user_id": 3 }
+```
+
+| Status | Meaning |
+|--------|---------|
+| 200 OK | Returns `{ "status": "removed" }`. |
+| 400 Bad Request | Missing fields. |
+
+---
+
+#### `GET /api/dm?user1={id}&user2={id}`
+Fetch the full message history between two users, ordered chronologically (oldest first).
+
+| Status | Meaning |
+|--------|---------|
+| 200 OK | Returns array of message objects. |
+| 400 Bad Request | `user1` or `user2` missing / non-numeric. |
+
+**Message object:**
+```json
+{
+  "id": 42,
+  "sender_id": 3,
+  "sender_name": "gator123",
+  "receiver_id": 5,
+  "content": "Hey, did you see the crane near Turlington?",
+  "created_at": "2026-04-13T11:05:00Z"
+}
+```
+
+---
+
+#### `POST /api/dm`
+Send a direct message from one user to another.
+
+**Request body:**
+```json
+{ "sender_id": 3, "receiver_id": 5, "content": "Hey, did you see the crane?" }
+```
+
+| Status | Meaning |
+|--------|---------|
+| 201 Created | Returns `{ "id": <new_message_id> }`. |
+| 400 Bad Request | Missing or empty fields. |
+| 500 Internal Server Error | Database insert failed. |
+
+---
+
+### New Frontend Files
+
+| File | Purpose |
+|------|---------|
+| `frontend/src/app/friend.service.ts` | Service wrapping all friend and DM API calls |
+| `frontend/src/app/chat/chat.ts` | `ChatComponent` — floating chat window logic |
+| `frontend/src/app/chat/chat.html` | Chat window template |
+| `frontend/src/app/chat/chat.css` | Chat window styles |
+
+### Modified Frontend Files
+
+| File | Change |
+|------|--------|
+| `frontend/src/app/map/map.ts` | Added `openAddFriendPopup`, `confirmAddFriend`, `formatCommentTime`, `isCommentOwner`, `deleteComment` methods |
+| `frontend/src/app/map/map.html` | Clickable comment usernames, add-friend popup, comment timestamps, delete button, login guard on input |
+| `frontend/src/app/map/map.css` | Styles for comment improvements, clickable username button, add-friend modal |
+| `frontend/src/app/profile/profile.ts` | Added `FriendService` + `ChatComponent`; friend data loading, accept/decline/remove/openChat methods |
+| `frontend/src/app/profile/profile.html` | Friends section with tabs, friend list, request list, chat window outlet |
+| `frontend/src/app/profile/profile.css` | Styles for friends section, tabs, badges, chat button |
+
+---
+
+### Manual Verification (Frontend)
+
+**1. Comment improvements**
+
+Open any sighting marker on the map and verify:
+- The "Comments" heading shows a count badge when comments exist.
+- Each comment shows a relative timestamp on the right side.
+- A trash icon appears only on your own comments; clicking it removes the comment immediately.
+- When logged out, the input box is replaced by a "Log in to leave a comment" link.
+
+**2. Add friend from sighting**
+
+1. Log in as User A and post a comment on a sighting.
+2. In a separate browser / incognito window, log in as User B and open the same sighting.
+3. Click User A's username in the comments — the add-friend popup should appear.
+4. Click **Add Friend** → popup shows "Friend request sent!".
+5. Clicking the same username again shows "Already friends or request pending".
+6. Open a different sighting posted by another user. Click the poster's username (shown below the date) — the same add-friend popup should appear.
+
+**3. Friend requests on Profile**
+
+1. Still as User B, navigate to **Profile**.
+2. The **Requests** tab shows User A's pending request with an orange badge.
+3. Click **Accept** — the request disappears and User A moves to the **Friends** tab.
+
+**4. Direct message chat**
+
+1. On the **Friends** tab, click **Chat** next to a friend.
+2. A floating window appears in the bottom-right corner.
+3. Type a message and press Enter — it appears as a blue bubble on the right.
+4. In the other browser window (logged in as the friend), open Profile → Chat with the same user. Within 3 seconds the message arrives as a grey bubble on the left (via polling).
