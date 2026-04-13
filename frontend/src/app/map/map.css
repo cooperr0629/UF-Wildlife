@@ -311,7 +311,7 @@
 }
 
 .comment-sender-btn:hover:not(:disabled) {
-  text-decoration: underline;
+  color: #FA4616;
 }
 
 .comment-sender-btn:disabled {

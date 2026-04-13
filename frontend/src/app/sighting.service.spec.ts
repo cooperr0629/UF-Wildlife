@@ -47,6 +47,7 @@ function makeSighting(overrides: Partial<Sighting> = {}): Sighting {
   return {
     id: '1',
     userId: '1',
+    username: 'Gator',
     latitude: 29.6436,
     longitude: -82.3549,
     address: 'UF Campus',

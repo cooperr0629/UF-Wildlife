@@ -6,6 +6,7 @@ import { MapComponent } from './map';
 import { SightingService } from '../sighting.service';
 import { AuthService } from '../auth.service';
 import { UploadService } from '../upload.service';
+import { FriendService } from '../friend.service';
 
 // ── Minimal stubs ────────────────────────────────────────────────
 const sightingServiceStub = {
@@ -14,12 +15,17 @@ const sightingServiceStub = {
   add: vi.fn().mockResolvedValue(undefined),
 };
 
+let authCurrentUser: { id: string; username: string } | null = { id: 'u1', username: 'Gator' };
 const authServiceStub = {
-  currentUser: () => ({ id: 'u1', username: 'Gator' }),
+  currentUser: () => authCurrentUser,
 };
 
 const uploadServiceStub = {
   uploadPhoto: vi.fn().mockResolvedValue('https://example.com/photo.jpg'),
+};
+
+const friendServiceStub = {
+  sendFriendRequest: vi.fn().mockResolvedValue({ status: 'requested' }),
 };
 
 // ── Suite ────────────────────────────────────────────────────────
@@ -33,6 +39,11 @@ describe('MapComponent', () => {
       json: () => Promise.resolve([]),
     } as unknown as Response);
 
+    authCurrentUser = { id: 'u1', username: 'Gator' };
+    (friendServiceStub.sendFriendRequest as ReturnType<typeof vi.fn>)
+      .mockClear()
+      .mockResolvedValue({ status: 'requested' });
+
     await TestBed.configureTestingModule({
       imports: [MapComponent],
       providers: [
@@ -42,6 +53,7 @@ describe('MapComponent', () => {
         { provide: SightingService, useValue: sightingServiceStub },
         { provide: AuthService, useValue: authServiceStub },
         { provide: UploadService, useValue: uploadServiceStub },
+        { provide: FriendService, useValue: friendServiceStub },
       ],
     }).compileComponents();
 
@@ -144,5 +156,139 @@ describe('MapComponent', () => {
     expect(component.query()).toBe('');
     expect(component.showResults()).toBe(false);
     expect(component.searchError()).toBe('');
+  });
+
+  // ── openAddFriendPopup / closeAddFriendPopup ─────────────────────────────
+
+  it('openAddFriendPopup() sets addFriendTarget when user is logged in', () => {
+    component.openAddFriendPopup('Bob');
+    expect(component.addFriendTarget()).toBe('Bob');
+    expect(component.addFriendStatus()).toBe('idle');
+  });
+
+  it('openAddFriendPopup() does nothing when clicking own username', () => {
+    component.openAddFriendPopup('Gator'); // same as authServiceStub username
+    expect(component.addFriendTarget()).toBeNull();
+  });
+
+  it('openAddFriendPopup() shows login prompt when user is not logged in', () => {
+    authCurrentUser = null;
+    component.openAddFriendPopup('Bob');
+    expect(component.addFriendTarget()).toBeNull();
+    expect(component.loginRequired()).toBe(true);
+  });
+
+  it('closeAddFriendPopup() clears target, status, and error', () => {
+    component.openAddFriendPopup('Bob');
+    component.addFriendError.set('some error');
+    component.addFriendStatus.set('error');
+
+    component.closeAddFriendPopup();
+
+    expect(component.addFriendTarget()).toBeNull();
+    expect(component.addFriendStatus()).toBe('idle');
+    expect(component.addFriendError()).toBe('');
+  });
+
+  // ── confirmAddFriend ─────────────────────────────────────────────────────
+
+  it('confirmAddFriend() sets status to success on successful request', async () => {
+    component.openAddFriendPopup('Bob');
+    await component.confirmAddFriend();
+    expect(component.addFriendStatus()).toBe('success');
+  });
+
+  it('confirmAddFriend() sets status to already when error contains "already"', async () => {
+    (friendServiceStub.sendFriendRequest as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('already friends')
+    );
+    component.openAddFriendPopup('Bob');
+    await component.confirmAddFriend();
+    expect(component.addFriendStatus()).toBe('already');
+  });
+
+  it('confirmAddFriend() sets status to error on generic failure', async () => {
+    (friendServiceStub.sendFriendRequest as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('Network timeout')
+    );
+    component.openAddFriendPopup('Bob');
+    await component.confirmAddFriend();
+    expect(component.addFriendStatus()).toBe('error');
+    expect(component.addFriendError()).toBe('Network timeout');
+  });
+
+  it('confirmAddFriend() does nothing when no target is set', async () => {
+    await component.confirmAddFriend();
+    expect(friendServiceStub.sendFriendRequest).not.toHaveBeenCalled();
+  });
+
+  // ── isCommentOwner ────────────────────────────────────────────────────────
+
+  it('isCommentOwner() returns true when comment sender matches current user', () => {
+    const comment = { ID: 1, SightingID: 1, Sender: 'Gator', Content: 'Nice!', CreateTime: '' };
+    expect(component.isCommentOwner(comment)).toBe(true);
+  });
+
+  it('isCommentOwner() returns false when comment sender is a different user', () => {
+    const comment = { ID: 2, SightingID: 1, Sender: 'Bob', Content: 'Cool!', CreateTime: '' };
+    expect(component.isCommentOwner(comment)).toBe(false);
+  });
+
+  it('isCommentOwner() returns false when no user is logged in', () => {
+    authCurrentUser = null;
+    const comment = { ID: 3, SightingID: 1, Sender: 'Gator', Content: '...', CreateTime: '' };
+    expect(component.isCommentOwner(comment)).toBe(false);
+  });
+
+  // ── deleteComment ────────────────────────────────────────────────────────
+
+  it('deleteComment() removes the comment from the local list after success', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true } as unknown as Response);
+    component.comments.set([
+      { ID: 10, SightingID: 1, Sender: 'Gator', Content: 'Hello', CreateTime: '' },
+      { ID: 11, SightingID: 1, Sender: 'Bob', Content: 'World', CreateTime: '' },
+    ]);
+
+    await component.deleteComment(10);
+
+    expect(component.comments()).toHaveLength(1);
+    expect(component.comments()[0].ID).toBe(11);
+  });
+
+  it('deleteComment() logs error and does not crash on network failure', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('offline'));
+    component.comments.set([
+      { ID: 10, SightingID: 1, Sender: 'Gator', Content: 'Hello', CreateTime: '' },
+    ]);
+
+    await expect(component.deleteComment(10)).resolves.not.toThrow();
+    expect(component.comments()).toHaveLength(1); // unchanged on error
+  });
+
+  // ── formatCommentTime ────────────────────────────────────────────────────
+
+  it('formatCommentTime() returns "just now" for very recent timestamps', () => {
+    const now = new Date().toISOString();
+    expect(component.formatCommentTime(now)).toBe('just now');
+  });
+
+  it('formatCommentTime() returns minutes ago for timestamps under 1 hour', () => {
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    expect(component.formatCommentTime(fiveMinAgo)).toBe('5m ago');
+  });
+
+  it('formatCommentTime() returns hours ago for timestamps under 24 hours', () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    expect(component.formatCommentTime(twoHoursAgo)).toBe('2h ago');
+  });
+
+  it('formatCommentTime() returns days ago for timestamps under 7 days', () => {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    expect(component.formatCommentTime(threeDaysAgo)).toBe('3d ago');
+  });
+
+  it('formatCommentTime() returns empty string for empty input', () => {
+    expect(component.formatCommentTime('')).toBe('');
   });
 });
