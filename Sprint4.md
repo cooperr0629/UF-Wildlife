@@ -834,6 +834,12 @@ An expandable form on the Profile page for securely updating passwords.
 **Test files:**
 - `frontend/src/app/sighting.service.spec.ts`
 - `frontend/src/app/map/map.spec.ts`
+- `frontend/src/app/upload.service.spec.ts` 
+- `frontend/src/app/login/login.spec.ts` 
+- `frontend/src/app/signup/signup.spec.ts` 
+- `frontend/src/app/home/home.spec.ts` 
+- `frontend/src/app/profile/profile.spec.ts`
+- `frontend/src/app/photos/photos.spec.ts` 
 
 **Run command:**
 ```bash
@@ -841,7 +847,7 @@ cd frontend
 npx ng test --no-watch
 ```
 
-**Total: 111 unit tests across 6 spec files, all passing.** (77 from prior sprints + 34 added in Sprint 4.)
+**Total: 209 unit tests across 13 spec files, all passing.** (77 from prior sprints + 132 added in Sprint 4.)
 
 #### Sprint 4 new tests — `sighting.service.spec.ts` (18 tests)
 
