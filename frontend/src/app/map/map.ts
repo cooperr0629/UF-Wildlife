@@ -10,7 +10,7 @@ import {
 import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { SightingService, Sighting, CATEGORY_COLORS, SPECIES_BY_CATEGORY } from '../sighting.service';
+import { SightingService, Sighting, CATEGORY_COLORS, SPECIES_BY_CATEGORY, LeaderboardEntry, Subscription, Notification, Channel, ChannelMessage } from '../sighting.service';
 import { AuthService } from '../auth.service';
 import { UploadService } from '../upload.service';
 import { FriendService } from '../friend.service';
@@ -128,6 +128,40 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private nearbyCircle: L.Circle | null = null;
   private nearbyOriginMarker: L.CircleMarker | null = null;
 
+  // Leaderboard
+  showLeaderboard = signal(false);
+  leaderboardSort = signal<string>('sightings');
+  leaderboardPeriod = signal<string>('all');
+  leaderboardEntries = signal<LeaderboardEntry[]>([]);
+  isLoadingLeaderboard = signal(false);
+
+  // Report
+  showReportModal = signal(false);
+  reportReason = signal('');
+  isSubmittingReport = signal(false);
+  reportSuccess = signal('');
+  reportError = signal('');
+
+  // Subscriptions
+  userSubscriptions = signal<Subscription[]>([]);
+
+  // Notifications
+  notifications = signal<Notification[]>([]);
+  unreadCount = signal(0);
+  showNotifPanel = signal(false);
+  private notifPollInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Channels
+  showChannelsPanel = signal(false);
+  channels = signal<Channel[]>([]);
+  selectedChannel = signal<Channel | null>(null);
+  channelMessages = signal<ChannelMessage[]>([]);
+  newChannelMsg = signal('');
+  isLoadingChannels = signal(false);
+  showCreateChannel = signal(false);
+  newChannelName = signal('');
+  newChannelDesc = signal('');
+
   categories = ['Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish', 'Insect', 'Other'];
   behaviors = ['Resting', 'Feeding', 'Moving', 'Nesting', 'Swimming', 'Flying', 'Unknown'];
 
@@ -223,6 +257,13 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     // Load sightings from backend, then render
     await this.sightingService.loadAll();
     this.renderSightingMarkers(this.sightingService.sightings());
+
+    // Load subscriptions and notifications for logged-in user
+    if (this.authService.currentUser()) {
+      this.loadSubscriptions();
+      this.loadNotifications();
+      this.notifPollInterval = setInterval(() => this.loadNotifications(), 30000);
+    }
 
     // Click anywhere on the map to add a sighting
     this.map.on('click', (e: L.LeafletMouseEvent) => {
@@ -913,6 +954,190 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---- Leaderboard ----
+  async toggleLeaderboard() {
+    const next = !this.showLeaderboard();
+    this.showLeaderboard.set(next);
+    if (next) await this.loadLeaderboard();
+  }
+
+  async loadLeaderboard() {
+    this.isLoadingLeaderboard.set(true);
+    try {
+      const entries = await this.sightingService.getLeaderboard(this.leaderboardSort(), this.leaderboardPeriod());
+      this.leaderboardEntries.set(entries);
+    } catch {
+      this.leaderboardEntries.set([]);
+    } finally {
+      this.isLoadingLeaderboard.set(false);
+    }
+  }
+
+  async setLeaderboardSort(sort: string) {
+    this.leaderboardSort.set(sort);
+    await this.loadLeaderboard();
+  }
+
+  async setLeaderboardPeriod(period: string) {
+    this.leaderboardPeriod.set(period);
+    await this.loadLeaderboard();
+  }
+
+  leaderboardRankColor(index: number): string {
+    if (index === 0) return '#FFD700';
+    if (index === 1) return '#C0C0C0';
+    if (index === 2) return '#CD7F32';
+    return '#888';
+  }
+
+  // ---- Report ----
+  openReportModal() {
+    const user = this.authService.currentUser();
+    if (!user) { this.loginRequired.set(true); return; }
+    this.reportReason.set('');
+    this.reportSuccess.set('');
+    this.reportError.set('');
+    this.showReportModal.set(true);
+  }
+
+  closeReportModal() {
+    this.showReportModal.set(false);
+  }
+
+  async submitReport() {
+    const s = this.selectedSighting();
+    const user = this.authService.currentUser();
+    if (!s || !user) return;
+    this.isSubmittingReport.set(true);
+    this.reportError.set('');
+    this.reportSuccess.set('');
+    try {
+      const result = await this.sightingService.createReport(s.id, parseInt(user.id, 10), this.reportReason());
+      if (result.success) {
+        this.reportSuccess.set('Report submitted successfully.');
+      } else {
+        this.reportError.set(result.message);
+      }
+    } catch {
+      this.reportError.set('Failed to submit report.');
+    } finally {
+      this.isSubmittingReport.set(false);
+    }
+  }
+
+  // ---- Subscriptions ----
+  async loadSubscriptions() {
+    const user = this.authService.currentUser();
+    if (!user) return;
+    const subs = await this.sightingService.getSubscriptions(user.id);
+    this.userSubscriptions.set(subs);
+  }
+
+  isSubscribedToSpecies(species: string): boolean {
+    return this.userSubscriptions().some(s => s.type === 'species' && s.value === species);
+  }
+
+  getSubscriptionForSpecies(species: string): Subscription | undefined {
+    return this.userSubscriptions().find(s => s.type === 'species' && s.value === species);
+  }
+
+  async toggleSubscribeSpecies(species: string) {
+    const user = this.authService.currentUser();
+    if (!user) { this.loginRequired.set(true); return; }
+    const existing = this.getSubscriptionForSpecies(species);
+    if (existing) {
+      await this.sightingService.deleteSubscription(existing.id);
+    } else {
+      await this.sightingService.createSubscription(parseInt(user.id, 10), 'species', species);
+    }
+    await this.loadSubscriptions();
+  }
+
+  // ---- Notifications ----
+  async loadNotifications() {
+    const user = this.authService.currentUser();
+    if (!user) return;
+    const notifs = await this.sightingService.getNotifications(user.id);
+    this.notifications.set(notifs);
+    this.unreadCount.set(notifs.filter(n => !n.is_read).length);
+  }
+
+  toggleNotifPanel() {
+    const next = !this.showNotifPanel();
+    this.showNotifPanel.set(next);
+    if (next) this.loadNotifications();
+  }
+
+  async markRead(notif: Notification) {
+    if (!notif.is_read) {
+      await this.sightingService.markNotificationRead(notif.id);
+      this.notifications.update(list => list.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+      this.unreadCount.update(c => Math.max(0, c - 1));
+    }
+  }
+
+  async openNotifSighting(notif: Notification) {
+    await this.markRead(notif);
+    this.showNotifPanel.set(false);
+    const sighting = this.sightingService.sightings().find(s => s.id === String(notif.sighting_id));
+    if (sighting && this.map) {
+      this.map.setView([sighting.latitude, sighting.longitude], 18);
+      this.openSightingDetail(sighting);
+    }
+  }
+
+  // ---- Channels ----
+  async toggleChannelsPanel() {
+    const next = !this.showChannelsPanel();
+    this.showChannelsPanel.set(next);
+    if (next) await this.loadChannels();
+  }
+
+  async loadChannels() {
+    this.isLoadingChannels.set(true);
+    try {
+      const ch = await this.sightingService.getChannels();
+      this.channels.set(ch);
+    } finally {
+      this.isLoadingChannels.set(false);
+    }
+  }
+
+  async openChannel(ch: Channel) {
+    this.selectedChannel.set(ch);
+    const msgs = await this.sightingService.getChannelMessages(ch.id);
+    this.channelMessages.set(msgs);
+  }
+
+  closeChannel() {
+    this.selectedChannel.set(null);
+    this.channelMessages.set([]);
+    this.newChannelMsg.set('');
+  }
+
+  async sendChannelMessage() {
+    const ch = this.selectedChannel();
+    const user = this.authService.currentUser();
+    const content = this.newChannelMsg().trim();
+    if (!ch || !user || !content) return;
+    await this.sightingService.sendChannelMessage(ch.id, parseInt(user.id, 10), user.username, content);
+    this.newChannelMsg.set('');
+    const msgs = await this.sightingService.getChannelMessages(ch.id);
+    this.channelMessages.set(msgs);
+  }
+
+  async createChannel() {
+    const user = this.authService.currentUser();
+    if (!user) { this.loginRequired.set(true); return; }
+    const name = this.newChannelName().trim();
+    if (!name) return;
+    await this.sightingService.createChannel(name, this.newChannelDesc().trim(), parseInt(user.id, 10));
+    this.newChannelName.set('');
+    this.newChannelDesc.set('');
+    this.showCreateChannel.set(false);
+    await this.loadChannels();
+  }
+
   private renderHeatmap(sightings: Sighting[]) {
     if (!this.map || !this.leaflet) return;
     this.clearHeatmap();
@@ -1054,6 +1279,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy() {
     this.clearHeatmap();
     this.clearNearbyCircle();
+    if (this.notifPollInterval) clearInterval(this.notifPollInterval);
     this.map?.remove();
     _hmrMapInstance = null;
   }

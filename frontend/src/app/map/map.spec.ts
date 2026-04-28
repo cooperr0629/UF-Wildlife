@@ -13,6 +13,17 @@ const sightingServiceStub = {
   sightings: () => [],
   loadAll: vi.fn().mockResolvedValue(undefined),
   add: vi.fn().mockResolvedValue(undefined),
+  getNotifications: vi.fn().mockResolvedValue([]),
+  getChannels: vi.fn().mockResolvedValue([]),
+  getChannelMessages: vi.fn().mockResolvedValue([]),
+  sendChannelMessage: vi.fn().mockResolvedValue(true),
+  createChannel: vi.fn().mockResolvedValue({ success: true, id: 1 }),
+  getLeaderboard: vi.fn().mockResolvedValue([]),
+  getSubscriptions: vi.fn().mockResolvedValue([]),
+  createSubscription: vi.fn().mockResolvedValue({ success: true, id: 1 }),
+  deleteSubscription: vi.fn().mockResolvedValue(true),
+  markNotificationRead: vi.fn().mockResolvedValue(true),
+  createReport: vi.fn().mockResolvedValue({ success: true }),
 };
 
 let authCurrentUser: { id: string; username: string } | null = { id: 'u1', username: 'Gator' };
@@ -290,5 +301,107 @@ describe('MapComponent', () => {
 
   it('formatCommentTime() returns empty string for empty input', () => {
     expect(component.formatCommentTime('')).toBe('');
+  });
+
+  // ── Leaderboard ────────────────────────────────────────────────────────
+
+  it('toggleLeaderboard() flips showLeaderboard signal', () => {
+    expect(component.showLeaderboard()).toBe(false);
+    component.toggleLeaderboard();
+    expect(component.showLeaderboard()).toBe(true);
+  });
+
+  it('leaderboardRankColor() returns gold for index 0', () => {
+    expect(component.leaderboardRankColor(0)).toBe('#FFD700');
+  });
+
+  it('leaderboardRankColor() returns silver for index 1', () => {
+    expect(component.leaderboardRankColor(1)).toBe('#C0C0C0');
+  });
+
+  it('leaderboardRankColor() returns bronze for index 2', () => {
+    expect(component.leaderboardRankColor(2)).toBe('#CD7F32');
+  });
+
+  it('leaderboardRankColor() returns grey for index 3+', () => {
+    expect(component.leaderboardRankColor(5)).toBe('#888');
+  });
+
+  // ── Report ─────────────────────────────────────────────────────────────
+
+  it('openReportModal() sets showReportModal and clears state', () => {
+    component.openReportModal();
+    expect(component.showReportModal()).toBe(true);
+    expect(component.reportReason()).toBe('');
+    expect(component.reportSuccess()).toBe('');
+    expect(component.reportError()).toBe('');
+  });
+
+  it('openReportModal() shows login required when not logged in', () => {
+    authCurrentUser = null;
+    component.openReportModal();
+    expect(component.showReportModal()).toBe(false);
+    expect(component.loginRequired()).toBe(true);
+  });
+
+  it('closeReportModal() hides the modal', () => {
+    component.openReportModal();
+    component.closeReportModal();
+    expect(component.showReportModal()).toBe(false);
+  });
+
+  // ── Subscriptions ──────────────────────────────────────────────────────
+
+  it('isSubscribedToSpecies() returns false with empty subscriptions', () => {
+    expect(component.isSubscribedToSpecies('Raccoon')).toBe(false);
+  });
+
+  it('isSubscribedToSpecies() returns true when subscription exists', () => {
+    component.userSubscriptions.set([
+      { id: 1, user_id: 1, type: 'species', value: 'Raccoon' },
+    ]);
+    expect(component.isSubscribedToSpecies('Raccoon')).toBe(true);
+  });
+
+  it('getSubscriptionForSpecies() returns the matching subscription', () => {
+    component.userSubscriptions.set([
+      { id: 5, user_id: 1, type: 'species', value: 'Osprey' },
+    ]);
+    expect(component.getSubscriptionForSpecies('Osprey')?.id).toBe(5);
+  });
+
+  it('getSubscriptionForSpecies() returns undefined for non-subscribed species', () => {
+    component.userSubscriptions.set([]);
+    expect(component.getSubscriptionForSpecies('Osprey')).toBeUndefined();
+  });
+
+  // ── Notifications ──────────────────────────────────────────────────────
+
+  it('toggleNotifPanel() flips showNotifPanel signal', () => {
+    expect(component.showNotifPanel()).toBe(false);
+    component.toggleNotifPanel();
+    expect(component.showNotifPanel()).toBe(true);
+  });
+
+  it('unreadCount defaults to 0', () => {
+    expect(component.unreadCount()).toBe(0);
+  });
+
+  // ── Channels ───────────────────────────────────────────────────────────
+
+  it('toggleChannelsPanel() flips showChannelsPanel signal', () => {
+    expect(component.showChannelsPanel()).toBe(false);
+    component.toggleChannelsPanel();
+    expect(component.showChannelsPanel()).toBe(true);
+  });
+
+  it('closeChannel() clears selectedChannel and channelMessages', () => {
+    component.selectedChannel.set({ id: 1, name: 'Test', description: '', creator_id: 1, msg_count: 0, created_at: '' });
+    component.channelMessages.set([{ id: 1, channel_id: 1, sender_id: 1, sender_name: 'A', content: 'hi', created_at: '' }]);
+    component.newChannelMsg.set('draft');
+    component.closeChannel();
+    expect(component.selectedChannel()).toBeNull();
+    expect(component.channelMessages()).toEqual([]);
+    expect(component.newChannelMsg()).toBe('');
   });
 });

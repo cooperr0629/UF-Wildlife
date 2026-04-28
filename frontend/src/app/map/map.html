@@ -107,6 +107,33 @@
   Stats
 </button>
 
+<!-- Leaderboard toggle button -->
+<button class="leaderboard-toggle" (click)="toggleLeaderboard()" [class.active]="showLeaderboard()">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M6 9H2v11h4V9zM14 4h-4v16h4V4zM22 13h-4v7h4v-7z"/>
+  </svg>
+  Leaderboard
+</button>
+
+<!-- Channels toggle button -->
+<button class="channels-toggle" (click)="toggleChannelsPanel()" [class.active]="showChannelsPanel()">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  </svg>
+  Channels
+</button>
+
+<!-- Notification bell -->
+<button class="notif-toggle" (click)="toggleNotifPanel()" [class.active]="showNotifPanel()">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+  </svg>
+  @if (unreadCount() > 0) {
+    <span class="notif-badge">{{ unreadCount() }}</span>
+  }
+</button>
+
 <!-- Stats panel -->
 @if (showStatsPanel()) {
   <div class="stats-panel">
@@ -215,6 +242,166 @@
   </div>
 }
 
+<!-- Leaderboard panel -->
+@if (showLeaderboard()) {
+  <div class="leaderboard-panel">
+    <div class="leaderboard-header">
+      <h4>Leaderboard</h4>
+      <button class="panel-close" (click)="toggleLeaderboard()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="leaderboard-tabs">
+      <button [class.active]="leaderboardSort() === 'sightings'" (click)="setLeaderboardSort('sightings')">Sightings</button>
+      <button [class.active]="leaderboardSort() === 'species'" (click)="setLeaderboardSort('species')">Species</button>
+      <button [class.active]="leaderboardSort() === 'likes'" (click)="setLeaderboardSort('likes')">Likes</button>
+    </div>
+    <div class="leaderboard-period">
+      <select [ngModel]="leaderboardPeriod()" (ngModelChange)="setLeaderboardPeriod($event)">
+        <option value="all">All Time</option>
+        <option value="month">This Month</option>
+        <option value="week">This Week</option>
+      </select>
+    </div>
+    @if (isLoadingLeaderboard()) {
+      <p class="panel-empty">Loading...</p>
+    } @else if (leaderboardEntries().length === 0) {
+      <p class="panel-empty">No data yet.</p>
+    } @else {
+      <div class="leaderboard-list">
+        @for (entry of leaderboardEntries(); track entry.user_id; let i = $index) {
+          <div class="leaderboard-item" [class.top3]="i < 3">
+            <span class="leaderboard-rank" [style.color]="leaderboardRankColor(i)">#{{ i + 1 }}</span>
+            <span class="leaderboard-avatar" [style.background]="leaderboardRankColor(i)">{{ entry.username.charAt(0).toUpperCase() }}</span>
+            <span class="leaderboard-name">{{ entry.username }}</span>
+            <span class="leaderboard-score">{{ entry.score }}</span>
+          </div>
+        }
+      </div>
+    }
+  </div>
+}
+
+<!-- Notification panel -->
+@if (showNotifPanel()) {
+  <div class="notif-panel">
+    <div class="notif-header">
+      <h4>Notifications</h4>
+      <button class="panel-close" (click)="toggleNotifPanel()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    @if (notifications().length === 0) {
+      <p class="panel-empty">No notifications.</p>
+    } @else {
+      <div class="notif-list">
+        @for (n of notifications(); track n.id) {
+          <button class="notif-item" [class.unread]="!n.is_read" (click)="openNotifSighting(n)">
+            <span class="notif-msg">{{ n.message }}</span>
+            <div class="notif-bottom">
+              <span class="notif-time">{{ formatCommentTime(n.created_at) }}</span>
+              <span class="notif-link">View on map →</span>
+            </div>
+          </button>
+        }
+      </div>
+    }
+  </div>
+}
+
+<!-- Channels panel -->
+@if (showChannelsPanel()) {
+  <div class="channels-panel">
+    <div class="channels-header">
+      @if (selectedChannel()) {
+        <button class="channels-back" (click)="closeChannel()">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <h4>{{ selectedChannel()!.name }}</h4>
+      } @else {
+        <h4>Discussion Channels</h4>
+      }
+      <button class="panel-close" (click)="toggleChannelsPanel()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    @if (selectedChannel()) {
+      <div class="channel-messages">
+        @if (channelMessages().length === 0) {
+          <p class="panel-empty">No messages yet. Start the conversation!</p>
+        } @else {
+          @for (m of channelMessages(); track m.id) {
+            <div class="channel-msg-item">
+              <span class="channel-msg-sender">{{ m.sender_name }}</span>
+              <span class="channel-msg-content">{{ m.content }}</span>
+              <span class="channel-msg-time">{{ formatCommentTime(m.created_at) }}</span>
+            </div>
+          }
+        }
+      </div>
+      @if (currentUser()) {
+        <div class="channel-msg-input">
+          <input
+            type="text"
+            placeholder="Type a message..."
+            [ngModel]="newChannelMsg()"
+            (ngModelChange)="newChannelMsg.set($event)"
+            (keydown.enter)="sendChannelMessage()"
+          />
+          <button (click)="sendChannelMessage()" [disabled]="!newChannelMsg().trim()">Send</button>
+        </div>
+      }
+    } @else {
+      @if (isLoadingChannels()) {
+        <p class="panel-empty">Loading...</p>
+      } @else {
+        <div class="channels-list">
+          @for (ch of channels(); track ch.id) {
+            <button class="channel-item" (click)="openChannel(ch)">
+              <span class="channel-name"># {{ ch.name }}</span>
+              <span class="channel-meta">{{ ch.msg_count }} messages</span>
+            </button>
+          }
+          @if (channels().length === 0) {
+            <p class="panel-empty">No channels yet. Create one!</p>
+          }
+        </div>
+        @if (showCreateChannel()) {
+          <div class="create-channel-form">
+            <input
+              type="text"
+              placeholder="Channel name"
+              [ngModel]="newChannelName()"
+              (ngModelChange)="newChannelName.set($event)"
+            />
+            <input
+              type="text"
+              placeholder="Description (optional)"
+              [ngModel]="newChannelDesc()"
+              (ngModelChange)="newChannelDesc.set($event)"
+            />
+            <div class="create-channel-actions">
+              <button class="btn-create-channel" (click)="createChannel()" [disabled]="!newChannelName().trim()">Create</button>
+              <button class="btn-cancel-channel" (click)="showCreateChannel.set(false)">Cancel</button>
+            </div>
+          </div>
+        } @else {
+          <button class="btn-new-channel" (click)="showCreateChannel.set(true)">+ New Channel</button>
+        }
+      }
+    }
+  </div>
+}
+
 <!-- Zoom controls (below heatmap) -->
 <div class="zoom-controls">
   <button class="zoom-btn" (click)="zoomIn()" title="Zoom in">
@@ -307,7 +494,7 @@
       <p class="detail-desc">{{ selectedSighting()!.description }}</p>
     }
 
-    <!-- Like button -->
+    <!-- Like / Subscribe / Report row -->
     <div class="like-row">
       <button
         class="like-btn"
@@ -320,6 +507,25 @@
           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
         </svg>
         <span class="like-count">{{ likeCount() }}</span>
+      </button>
+      <button
+        class="subscribe-btn"
+        [class.subscribed]="isSubscribedToSpecies(selectedSighting()!.animalName)"
+        (click)="toggleSubscribeSpecies(selectedSighting()!.animalName)"
+        [title]="isSubscribedToSpecies(selectedSighting()!.animalName) ? 'Unsubscribe' : 'Subscribe to this species'"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" [attr.fill]="isSubscribedToSpecies(selectedSighting()!.animalName) ? '#FFB300' : 'none'" stroke="#FFB300" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        {{ isSubscribedToSpecies(selectedSighting()!.animalName) ? 'Subscribed' : 'Subscribe' }}
+      </button>
+      <button class="report-btn" (click)="openReportModal()" title="Report this sighting">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+          <line x1="4" y1="22" x2="4" y2="15"/>
+        </svg>
+        Report
       </button>
     </div>
 
@@ -421,6 +627,39 @@
         <div class="add-friend-actions">
           <button class="btn-add-friend" (click)="confirmAddFriend()">Retry</button>
           <button class="btn-dismiss" (click)="closeAddFriendPopup()">Cancel</button>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+<!-- Report Modal -->
+@if (showReportModal()) {
+  <div class="modal-overlay" (click)="closeReportModal()">
+    <div class="report-modal" (click)="$event.stopPropagation()">
+      <h3>Report Sighting</h3>
+      @if (reportSuccess()) {
+        <p class="report-success">{{ reportSuccess() }}</p>
+        <button class="btn-dismiss" (click)="closeReportModal()">Close</button>
+      } @else {
+        <p class="report-desc">Why are you reporting this sighting?</p>
+        @if (reportError()) {
+          <p class="report-error">{{ reportError() }}</p>
+        }
+        <textarea
+          class="report-textarea"
+          rows="3"
+          placeholder="Describe the issue..."
+          [ngModel]="reportReason()"
+          (ngModelChange)="reportReason.set($event)"
+        ></textarea>
+        <div class="report-actions">
+          <button
+            class="btn-submit-report"
+            (click)="submitReport()"
+            [disabled]="!reportReason().trim() || isSubmittingReport()"
+          >{{ isSubmittingReport() ? 'Submitting...' : 'Submit Report' }}</button>
+          <button class="btn-dismiss" (click)="closeReportModal()">Cancel</button>
         </div>
       }
     </div>

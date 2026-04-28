@@ -363,7 +363,49 @@ export const SPECIES_INFO: Record<string, SpeciesInfo> = {
   },
 };
 
+export interface LeaderboardEntry {
+  user_id: number;
+  username: string;
+  score: number;
+}
+
+export interface Subscription {
+  id: number;
+  user_id: number;
+  type: string;
+  value: string;
+}
+
+export interface Notification {
+  id: number;
+  user_id: number;
+  sighting_id: number;
+  subscription_id: number;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface Channel {
+  id: number;
+  name: string;
+  description: string;
+  creator_id: number;
+  msg_count: number;
+  created_at: string;
+}
+
+export interface ChannelMessage {
+  id: number;
+  channel_id: number;
+  sender_id: number;
+  sender_name: string;
+  content: string;
+  created_at: string;
+}
+
 const API_BASE = 'http://localhost:8080/api/sightings';
+const API_ROOT = 'http://localhost:8080/api';
 
 @Injectable({ providedIn: 'root' })
 export class SightingService {
@@ -561,5 +603,104 @@ export class SightingService {
       likeCount: row.like_count || 0,
       distanceMeters: row.distance_meters || 0,
     }));
+  }
+
+  async getLeaderboard(sort: string = 'sightings', period: string = 'all'): Promise<LeaderboardEntry[]> {
+    const params = new URLSearchParams({ sort, period });
+    const res = await fetch(`${API_ROOT}/leaderboard?${params}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.entries || data || [];
+  }
+
+  async createReport(sightingId: string, reporterId: number, reason: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_ROOT}/reports`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sighting_id: parseInt(sightingId, 10), reporter_id: reporterId, reason }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, message: data.error || 'Failed to submit report' };
+    return { success: true, message: 'Report submitted' };
+  }
+
+  async getSubscriptions(userId: string): Promise<Subscription[]> {
+    const res = await fetch(`${API_ROOT}/subscriptions?user_id=${userId}`);
+    if (!res.ok) return [];
+    return await res.json();
+  }
+
+  async createSubscription(userId: number, type: string, value: string): Promise<{ success: boolean; id?: number }> {
+    const res = await fetch(`${API_ROOT}/subscriptions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, type, value }),
+    });
+    if (!res.ok) return { success: false };
+    const data = await res.json();
+    return { success: true, id: data.id };
+  }
+
+  async deleteSubscription(id: number): Promise<boolean> {
+    const res = await fetch(`${API_ROOT}/subscriptions/${id}`, { method: 'DELETE' });
+    return res.ok;
+  }
+
+  async getNotifications(userId: string, unreadOnly: boolean = false): Promise<Notification[]> {
+    const params = new URLSearchParams({ user_id: userId });
+    if (unreadOnly) params.set('unread', 'true');
+    const res = await fetch(`${API_ROOT}/notifications?${params}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+
+  async markNotificationRead(id: number): Promise<boolean> {
+    const res = await fetch(`${API_ROOT}/notifications/${id}/read`, { method: 'PUT' });
+    return res.ok;
+  }
+
+  async getChannels(): Promise<Channel[]> {
+    const res = await fetch(`${API_ROOT}/channels`);
+    if (!res.ok) return [];
+    return await res.json();
+  }
+
+  async createChannel(name: string, description: string, creatorId: number): Promise<{ success: boolean; id?: number }> {
+    const res = await fetch(`${API_ROOT}/channels`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, creator_id: creatorId }),
+    });
+    if (!res.ok) return { success: false };
+    const data = await res.json();
+    return { success: true, id: data.id };
+  }
+
+  async getChannelMessages(channelId: number): Promise<ChannelMessage[]> {
+    const res = await fetch(`${API_ROOT}/channels/${channelId}/messages`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+
+  async sendChannelMessage(channelId: number, senderId: number, senderName: string, content: string): Promise<boolean> {
+    const res = await fetch(`${API_ROOT}/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sender_id: senderId, sender_name: senderName, content }),
+    });
+    return res.ok;
+  }
+
+  async changePassword(userId: number, oldPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_ROOT}/users/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, old_password: oldPassword, new_password: newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, message: data.error || 'Failed to change password' };
+    return { success: true, message: 'Password changed successfully' };
   }
 }

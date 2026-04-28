@@ -132,6 +132,90 @@ func createTables() {
 		log.Fatal("Error creating direct_messages table:", err)
 	}
 
+	reportsTable := `
+	CREATE TABLE IF NOT EXISTS reports (
+		id SERIAL PRIMARY KEY,
+		sighting_id INTEGER NOT NULL,
+		reporter_id INTEGER NOT NULL,
+		reason TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'pending',
+		admin_note TEXT DEFAULT '',
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		resolved_at TIMESTAMP,
+		FOREIGN KEY (sighting_id) REFERENCES animals(id) ON DELETE CASCADE,
+		FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+
+	_, err = DB.Exec(reportsTable)
+	if err != nil {
+		log.Fatal("Error creating reports table:", err)
+	}
+
+	subscriptionsTable := `
+	CREATE TABLE IF NOT EXISTS subscriptions (
+		id SERIAL PRIMARY KEY,
+		user_id INTEGER NOT NULL,
+		type TEXT NOT NULL,
+		value TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+
+	_, err = DB.Exec(subscriptionsTable)
+	if err != nil {
+		log.Fatal("Error creating subscriptions table:", err)
+	}
+
+	notificationsTable := `
+	CREATE TABLE IF NOT EXISTS notifications (
+		id SERIAL PRIMARY KEY,
+		user_id INTEGER NOT NULL,
+		sighting_id INTEGER NOT NULL,
+		subscription_id INTEGER NOT NULL,
+		message TEXT NOT NULL,
+		is_read BOOLEAN DEFAULT FALSE,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (sighting_id) REFERENCES animals(id) ON DELETE CASCADE,
+		FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE
+	);`
+
+	_, err = DB.Exec(notificationsTable)
+	if err != nil {
+		log.Fatal("Error creating notifications table:", err)
+	}
+
+	areaChannelsTable := `
+	CREATE TABLE IF NOT EXISTS area_channels (
+		id SERIAL PRIMARY KEY,
+		name TEXT NOT NULL,
+		description TEXT DEFAULT '',
+		creator_id INTEGER NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+
+	_, err = DB.Exec(areaChannelsTable)
+	if err != nil {
+		log.Fatal("Error creating area_channels table:", err)
+	}
+
+	areaMessagesTable := `
+	CREATE TABLE IF NOT EXISTS area_messages (
+		id SERIAL PRIMARY KEY,
+		channel_id INTEGER NOT NULL,
+		sender_id INTEGER NOT NULL,
+		content TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (channel_id) REFERENCES area_channels(id) ON DELETE CASCADE,
+		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+
+	_, err = DB.Exec(areaMessagesTable)
+	if err != nil {
+		log.Fatal("Error creating area_messages table:", err)
+	}
+
 	log.Println("Database tables created successfully")
 
 	// Add missing columns to existing animals table (safe to run repeatedly)

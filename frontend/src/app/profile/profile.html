@@ -228,6 +228,44 @@
       }
     </section>
 
+    <!-- Change Password Section -->
+    <section class="change-pw-section">
+      <button class="btn-change-pw-toggle" (click)="toggleChangePassword()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        {{ showChangePassword() ? 'Cancel' : 'Change Password' }}
+      </button>
+      @if (showChangePassword()) {
+        <div class="change-pw-form">
+          @if (changePasswordSuccess()) {
+            <p class="change-pw-success">{{ changePasswordSuccess() }}</p>
+          }
+          @if (changePasswordError()) {
+            <p class="change-pw-error">{{ changePasswordError() }}</p>
+          }
+          <div class="form-row">
+            <label>Current Password</label>
+            <input type="password" [ngModel]="oldPassword()" (ngModelChange)="oldPassword.set($event)" />
+          </div>
+          <div class="form-row">
+            <label>New Password</label>
+            <input type="password" [ngModel]="newPassword()" (ngModelChange)="newPassword.set($event)" />
+          </div>
+          <div class="form-row">
+            <label>Confirm New Password</label>
+            <input type="password" [ngModel]="confirmNewPassword()" (ngModelChange)="confirmNewPassword.set($event)" />
+          </div>
+          <p class="pw-hint">Min 8 characters, include uppercase, lowercase, and a digit.</p>
+          <div class="form-actions">
+            <button class="btn-save" (click)="savePassword()" [disabled]="!oldPassword() || !newPassword() || !confirmNewPassword()">Save</button>
+            <button class="btn-cancel" (click)="toggleChangePassword()">Cancel</button>
+          </div>
+        </div>
+      }
+    </section>
+
     <!-- Account Section -->
     <section class="account-section">
       @if (editMode()) {

@@ -28,6 +28,14 @@ export class ProfileComponent implements OnInit, OnDestroy {
   editSightingForm = signal<Partial<Sighting>>({});
   confirmDeleteId = signal<string | null>(null);
 
+  // Change password
+  showChangePassword = signal(false);
+  oldPassword = signal('');
+  newPassword = signal('');
+  confirmNewPassword = signal('');
+  changePasswordError = signal('');
+  changePasswordSuccess = signal('');
+
   avatarPreview = signal<string | null>(null);
 
   // Friends & chat
@@ -230,6 +238,45 @@ export class ProfileComponent implements OnInit, OnDestroy {
   confirmDelete(id: string) {
     this.sightingService.remove(id);
     this.confirmDeleteId.set(null);
+  }
+
+  toggleChangePassword() {
+    this.showChangePassword.set(!this.showChangePassword());
+    this.oldPassword.set('');
+    this.newPassword.set('');
+    this.confirmNewPassword.set('');
+    this.changePasswordError.set('');
+    this.changePasswordSuccess.set('');
+  }
+
+  async savePassword() {
+    const u = this.user();
+    if (!u) return;
+    this.changePasswordError.set('');
+    this.changePasswordSuccess.set('');
+
+    if (this.newPassword() !== this.confirmNewPassword()) {
+      this.changePasswordError.set('New passwords do not match.');
+      return;
+    }
+    if (this.newPassword().length < 8) {
+      this.changePasswordError.set('Password must be at least 8 characters.');
+      return;
+    }
+
+    const result = await this.sightingService.changePassword(
+      parseInt(u.id, 10),
+      this.oldPassword(),
+      this.newPassword()
+    );
+    if (result.success) {
+      this.changePasswordSuccess.set('Password changed successfully!');
+      this.oldPassword.set('');
+      this.newPassword.set('');
+      this.confirmNewPassword.set('');
+    } else {
+      this.changePasswordError.set(result.message);
+    }
   }
 
   logout() {

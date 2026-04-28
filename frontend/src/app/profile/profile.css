@@ -670,3 +670,55 @@
   border-color: #E53935;
   color: #E53935;
 }
+
+/* ── Change Password ── */
+.change-pw-section {
+  margin-top: 20px;
+}
+
+.btn-change-pw-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  transition: border-color 0.15s;
+}
+.btn-change-pw-toggle:hover { border-color: #0021A5; color: #0021A5; }
+
+.change-pw-form {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.change-pw-success {
+  color: #43A047;
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0 0 10px;
+  text-align: center;
+}
+
+.change-pw-error {
+  color: #c62828;
+  font-size: 13px;
+  margin: 0 0 10px;
+  text-align: center;
+}
+
+.pw-hint {
+  font-size: 11px;
+  color: #999;
+  margin: 0 0 8px;
+}

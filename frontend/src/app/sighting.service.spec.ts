@@ -202,4 +202,149 @@ describe('SightingService', () => {
 
     expect(service.sightings()[0].quantity).toBe(2); // original unchanged
   });
+
+  // ── getLeaderboard() ──────────────────────────────────────────────────────
+
+  it('getLeaderboard() extracts entries from wrapped response', async () => {
+    const entries = [
+      { user_id: 1, username: 'Alice', score: 10 },
+      { user_id: 2, username: 'Bob', score: 5 },
+    ];
+    globalThis.fetch = mockFetch({ entries });
+
+    const result = await service.getLeaderboard('sightings', 'all');
+    expect(result).toEqual(entries);
+  });
+
+  it('getLeaderboard() returns empty array on error', async () => {
+    globalThis.fetch = mockFetch({}, false);
+    const result = await service.getLeaderboard();
+    expect(result).toEqual([]);
+  });
+
+  // ── createReport() ────────────────────────────────────────────────────────
+
+  it('createReport() returns success on 200', async () => {
+    globalThis.fetch = mockFetch({ id: 1 });
+    const result = await service.createReport('5', 3, 'Fake sighting');
+    expect(result.success).toBe(true);
+  });
+
+  it('createReport() returns error message on failure', async () => {
+    globalThis.fetch = mockFetch({ error: 'already reported' }, false);
+    const result = await service.createReport('5', 3, 'Fake');
+    expect(result.success).toBe(false);
+    expect(result.message).toBe('already reported');
+  });
+
+  // ── getSubscriptions() ────────────────────────────────────────────────────
+
+  it('getSubscriptions() returns subscription array', async () => {
+    const subs = [{ id: 1, user_id: 3, type: 'species', value: 'Raccoon' }];
+    globalThis.fetch = mockFetch(subs);
+    const result = await service.getSubscriptions('3');
+    expect(result).toEqual(subs);
+  });
+
+  it('getSubscriptions() returns empty array on error', async () => {
+    globalThis.fetch = mockFetch({}, false);
+    const result = await service.getSubscriptions('3');
+    expect(result).toEqual([]);
+  });
+
+  // ── createSubscription() ──────────────────────────────────────────────────
+
+  it('createSubscription() returns success with id', async () => {
+    globalThis.fetch = mockFetch({ id: 10 });
+    const result = await service.createSubscription(3, 'species', 'Raccoon');
+    expect(result.success).toBe(true);
+    expect(result.id).toBe(10);
+  });
+
+  // ── deleteSubscription() ──────────────────────────────────────────────────
+
+  it('deleteSubscription() returns true on success', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true } as unknown as Response);
+    const result = await service.deleteSubscription(10);
+    expect(result).toBe(true);
+  });
+
+  // ── getNotifications() ────────────────────────────────────────────────────
+
+  it('getNotifications() returns notification array', async () => {
+    const notifs = [{ id: 1, user_id: 3, message: 'New sighting', is_read: false }];
+    globalThis.fetch = mockFetch(notifs);
+    const result = await service.getNotifications('3');
+    expect(result).toEqual(notifs);
+  });
+
+  it('getNotifications() returns empty array for non-array response', async () => {
+    globalThis.fetch = mockFetch(null);
+    const result = await service.getNotifications('3');
+    expect(result).toEqual([]);
+  });
+
+  // ── markNotificationRead() ────────────────────────────────────────────────
+
+  it('markNotificationRead() returns true on success', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true } as unknown as Response);
+    const result = await service.markNotificationRead(1);
+    expect(result).toBe(true);
+  });
+
+  // ── getChannels() ─────────────────────────────────────────────────────────
+
+  it('getChannels() returns channel array', async () => {
+    const channels = [{ id: 1, name: 'Lake Alice', msg_count: 5 }];
+    globalThis.fetch = mockFetch(channels);
+    const result = await service.getChannels();
+    expect(result).toEqual(channels);
+  });
+
+  // ── createChannel() ───────────────────────────────────────────────────────
+
+  it('createChannel() returns success with id', async () => {
+    globalThis.fetch = mockFetch({ id: 7 });
+    const result = await service.createChannel('Test Channel', 'desc', 3);
+    expect(result.success).toBe(true);
+    expect(result.id).toBe(7);
+  });
+
+  // ── getChannelMessages() ──────────────────────────────────────────────────
+
+  it('getChannelMessages() returns message array', async () => {
+    const msgs = [{ id: 1, channel_id: 1, sender_name: 'Alice', content: 'Hi' }];
+    globalThis.fetch = mockFetch(msgs);
+    const result = await service.getChannelMessages(1);
+    expect(result).toEqual(msgs);
+  });
+
+  it('getChannelMessages() returns empty array for non-array response', async () => {
+    globalThis.fetch = mockFetch(null);
+    const result = await service.getChannelMessages(1);
+    expect(result).toEqual([]);
+  });
+
+  // ── sendChannelMessage() ──────────────────────────────────────────────────
+
+  it('sendChannelMessage() returns true on success', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true } as unknown as Response);
+    const result = await service.sendChannelMessage(1, 3, 'Alice', 'Hello!');
+    expect(result).toBe(true);
+  });
+
+  // ── changePassword() ──────────────────────────────────────────────────────
+
+  it('changePassword() returns success on 200', async () => {
+    globalThis.fetch = mockFetch({ message: 'password changed' });
+    const result = await service.changePassword(3, 'OldPass1', 'NewPass1');
+    expect(result.success).toBe(true);
+  });
+
+  it('changePassword() returns error message on failure', async () => {
+    globalThis.fetch = mockFetch({ error: 'incorrect old password' }, false);
+    const result = await service.changePassword(3, 'wrong', 'NewPass1');
+    expect(result.success).toBe(false);
+    expect(result.message).toBe('incorrect old password');
+  });
 });
